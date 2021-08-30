@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/signal"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,8 +20,23 @@ import (
 // local packages
 import (
 	"github.com/gonzaru/gorum/config"
+	"github.com/gonzaru/gorum/screen"
 	"github.com/gonzaru/gorum/utils"
 )
+
+// finishMenu performs actions before leaving the menu
+func finishMenu() error {
+	if err := exec.Command("stty", "-F", "/dev/tty", "echo").Run(); err != nil {
+		log.Fatal(err)
+	}
+	if err := exec.Command("stty", "sane").Run(); err != nil {
+		log.Fatal(err)
+	}
+	if err := exec.Command("reset").Run(); err != nil {
+		log.Fatal(err)
+	}
+	return nil
+}
 
 // helpMenu shows help menu information
 func helpMenu() string {
@@ -32,7 +48,7 @@ func helpMenu() string {
 	help += "url            # plays the stream url\n"
 	help += fmt.Sprintf("start          # starts %s\n", config.ProgName)
 	help += fmt.Sprintf("stop           # stops %s\n", config.ProgName)
-	help += "stopplay       # stops playing the current media\n"
+	help += "stopplay       # stops playing the current media [stopp]\n"
 	help += "status         # prints status information\n"
 	help += "mute           # toggles between mute and unmute\n"
 	help += "pause          # toggles between pause and unpause\n"
@@ -67,10 +83,8 @@ func Menu() error {
 	curStream := streamPath()
 	numPad := strconv.Itoa(utils.CountDigit(len(streams)))
 	for {
-		cmdCc := exec.Command("clear")
-		cmdCc.Stdout = os.Stdout
-		if errCr := cmdCc.Run(); errCr != nil {
-			return errCr
+		if errSc := screen.Clear(); errSc != nil {
+			return errSc
 		}
 		fmt.Printf("%"+numPad+"s### %s ###\n", "", strings.ToUpper(config.ProgName))
 		fmt.Printf("%"+numPad+"s=) help\n", "")
@@ -145,7 +159,7 @@ func Menu() error {
 			if err := Stop(); err != nil {
 				statusMsg = err.Error()
 			}
-		case "stopplay":
+		case "stopp", "stopplay":
 			curStream = ""
 			streamId = -1
 			statusMsg = ""
@@ -172,7 +186,7 @@ func Menu() error {
 				continue
 			}
 			cmd := `{"command": ["get_property", "filtered-metadata"]}`
-			if _, errSc := StatusCmd(cmd, "error"); errSc != nil {
+			if _, errSc := StatusCmd(cmd, "error", 5); errSc != nil {
 				log.Print(errSc)
 				statusMsg = errSc.Error()
 				fmt.Println(statusMsg)
@@ -194,4 +208,38 @@ func Menu() error {
 			}
 		}
 	}
+}
+
+// SignalHandlerMenu sets signal handler for menu
+func SignalHandlerMenu() {
+	chSignal := make(chan os.Signal, 1)
+	chExit := make(chan int)
+	signal.Notify(chSignal, syscall.SIGINT)
+	go func() {
+		for {
+			sig := <-chSignal
+			msg := fmt.Sprintf("\nsignalHandlerMenu: info: recived signal '%s'\n", sig)
+			fmt.Print(msg)
+			log.Print(msg)
+			switch sig {
+			case syscall.SIGINT:
+				if err := finishMenu(); err != nil {
+					utils.ErrPrint(err)
+					log.Fatal(err)
+				}
+				chExit <- 0
+			default:
+				errMsg := fmt.Sprintf("\nsignalHandlerMenu: error: unsupported signal '%s'\n", sig)
+				utils.ErrPrint(errMsg)
+				log.Print(errMsg)
+				if err := finish(); err != nil {
+					utils.ErrPrint(err)
+					log.Fatal(err)
+				}
+				chExit <- 1
+			}
+		}
+	}()
+	code := <-chExit
+	os.Exit(code)
 }

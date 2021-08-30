@@ -36,6 +36,7 @@ func main() {
 	case "help":
 		gorum.Help()
 	case "menu":
+		go gorum.SignalHandlerMenu()
 		if errMe := gorum.Menu(); errMe != nil {
 			utils.ErrPrint(errMe)
 			log.Fatal(errMe)
@@ -63,7 +64,7 @@ func main() {
 			utils.ErrPrint(err)
 			log.Fatal(err)
 		}
-	case "stopplay":
+	case "stopp", "stopplay":
 		if err := gorum.PlayStop(); err != nil {
 			utils.ErrPrint(err)
 			log.Fatal(err)
@@ -74,7 +75,7 @@ func main() {
 			log.Fatal(err)
 		}
 		cmd := `{"command": ["get_property", "filtered-metadata"]}`
-		if _, errSc := gorum.StatusCmd(cmd, "error"); errSc != nil {
+		if _, errSc := gorum.StatusCmd(cmd, "error", 5); errSc != nil {
 			utils.ErrPrint(errSc)
 			log.Fatal(errSc)
 		}

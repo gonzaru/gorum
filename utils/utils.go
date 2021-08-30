@@ -12,6 +12,8 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 )
 
@@ -39,6 +41,29 @@ func ErrPrintf(format string, v ...interface{}) {
 	}
 }
 
+// FileIndicator returns an indicator that identifies a file (*/=@|)
+func FileIndicator(file string) (string, error) {
+	var symbol string
+	fi, err := os.Stat(file)
+	if err != nil {
+		return "", err
+	}
+	if fi.IsDir() {
+		symbol = "/"
+	} else if fi.Mode()&0111 != 0 && fi.Mode()&os.ModeSymlink != os.ModeSymlink {
+		symbol = "*"
+	} else if fi.Mode()&os.ModeNamedPipe != 0 {
+		symbol = "|"
+	} else if fi.Mode()&os.ModeSocket != 0 {
+		symbol = "="
+	} else if fi.Mode()&os.ModeSymlink == os.ModeSymlink {
+		symbol = "@"
+	} else {
+		symbol = ""
+	}
+	return symbol, nil
+}
+
 // JsonPretty returns json with a more readable format
 func JsonPretty(dataJson []byte, prefix string, delim string) (string, error) {
 	var dataPretty bytes.Buffer
@@ -49,6 +74,60 @@ func JsonPretty(dataJson []byte, prefix string, delim string) (string, error) {
 		return "", err
 	}
 	return dataPretty.String(), nil
+}
+
+// KeyPress gets the pressed key
+func KeyPress() ([]byte, error) {
+	var key = make([]byte, 3, 3)
+	fileFlag := "-f"
+	if runtime.GOOS == "linux" {
+		fileFlag = "-F"
+	}
+	if errCs := exec.Command("stty", fileFlag, "/dev/tty", "cbreak", "min", "1").Run(); errCs != nil {
+		return nil, errCs
+	}
+	if errCs := exec.Command("stty", fileFlag, "/dev/tty", "-echo").Run(); errCs != nil {
+		return nil, errCs
+	}
+	defer func() {
+		if errCs := exec.Command("stty", fileFlag, "/dev/tty", "echo").Run(); errCs != nil {
+			ErrPrint(errCs)
+			log.Fatal(errCs)
+		}
+	}()
+	if _, errSr := os.Stdin.Read(key); errSr != nil {
+		return nil, errSr
+	}
+	return key, nil
+}
+
+// KeyPressName returns the name of pressed key
+func KeyPressName(key []byte) (string, error) {
+	var keyName string
+	var keySize = 3
+	if len(key) != keySize {
+		return "", errors.New(fmt.Sprintf("keyPressName: error: key needs to be size %d", keySize))
+	}
+	if key[0] == 27 && key[1] == 0 && key[2] == 0 {
+		keyName = "escape"
+	} else if key[0] == 10 && key[1] == 0 && key[2] == 0 {
+		keyName = "enter"
+	} else if key[0] == 106 && key[1] == 0 && key[2] == 0 {
+		keyName = "j"
+	} else if key[0] == 107 && key[1] == 0 && key[2] == 0 {
+		keyName = "k"
+	} else if key[0] == 45 && key[1] == 0 && key[2] == 0 {
+		keyName = "minus"
+	} else if key[0] == 46 && key[1] == 0 && key[2] == 0 {
+		keyName = "period"
+	} else if key[0] == 27 && key[1] == 91 && key[2] == 65 {
+		keyName = "up"
+	} else if key[0] == 27 && key[1] == 91 && key[2] == 66 {
+		keyName = "down"
+	} else {
+		keyName = string(key)
+	}
+	return keyName, nil
 }
 
 // PidFileExists checks if file and pid exists

@@ -34,11 +34,12 @@ import (
 // CheckOut checks for a valid setup
 func CheckOut() error {
 	if runtime.GOOS != "linux" && runtime.GOOS != "freebsd" {
-		utils.ErrPrintf("checkOut: warning: '%s' has not been tested\n", runtime.GOOS)
-		log.Printf("checkOut: warning: '%s' has not been tested\n", runtime.GOOS)
+		wrnMsg := fmt.Sprintf("checkOut: warning: '%s' has not been tested\n", runtime.GOOS)
+		utils.ErrPrint(wrnMsg)
+		log.Printf(wrnMsg)
 		time.Sleep(time.Second)
 	}
-	cmds := []string{"clear", "setsid", config.Player}
+	cmds := []string{"clear", "reset", "setsid", "stty", config.Player}
 	for _, cmd := range cmds {
 		if _, errLp := exec.LookPath(cmd); errLp != nil {
 			return errors.New(fmt.Sprintf("checkOut: error: command '%s' not found\n", cmd))
@@ -100,7 +101,7 @@ func Help() {
 	fmt.Printf("  %s /path/to/file  # plays the local file\n", config.ProgName)
 	fmt.Printf("  %s start          # starts %s\n", config.ProgName, config.ProgName)
 	fmt.Printf("  %s stop           # stops %s\n", config.ProgName, config.ProgName)
-	fmt.Printf("  %s stopplay       # stops playing the current media file\n", config.ProgName)
+	fmt.Printf("  %s stopplay       # stops playing the current media file [stopp]\n", config.ProgName)
 	fmt.Printf("  %s status         # prints status information\n", config.ProgName)
 	fmt.Printf("  %s mute           # toggles between mute and unmute\n", config.ProgName)
 	fmt.Printf("  %s pause          # toggles between pause and unpause\n", config.ProgName)
@@ -447,8 +448,7 @@ func Status() (string, error) {
 }
 
 // StatusCmd checks command status
-func StatusCmd(cmd string, field string) (map[string]interface{}, error) {
-	const maxTries = 5
+func StatusCmd(cmd string, field string, maxTries int) (map[string]interface{}, error) {
 	var (
 		content map[string]interface{}
 		err     error = nil

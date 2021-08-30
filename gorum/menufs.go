@@ -7,8 +7,10 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,8 +22,210 @@ import (
 // local packages
 import (
 	"github.com/gonzaru/gorum/config"
+	"github.com/gonzaru/gorum/cursor"
+	"github.com/gonzaru/gorum/screen"
 	"github.com/gonzaru/gorum/utils"
 )
+
+// drawSelHeader draws selfs header
+func drawSelHeader(pad string) error {
+	pwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	pwdSplit := strings.Split(pwd, "/")
+	parentDir := pwdSplit[len(pwdSplit)-2]
+	curDir := pwdSplit[len(pwdSplit)-1]
+	fmt.Printf("%"+pad+"s### %s ###\n", "", strings.ToUpper(config.ProgName))
+	fmt.Printf("%"+pad+"s=) help (j,k,Enter,Escape)\n", "")
+	fmt.Printf("%"+pad+"s-) ../ [%s]\n", "", parentDir)
+	fmt.Printf("%"+pad+"s.) ./ [%s]\n", "", curDir)
+	return nil
+}
+
+// drawSelBody draws selfs body
+func drawSelBody(files []fs.FileInfo, min int, max int, pad string) (int, error) {
+	var lines = 0
+	for num, file := range files {
+		if num >= min && num <= max {
+			symbol, err := utils.FileIndicator(file.Name())
+			if err != nil {
+				return -1, err
+			}
+			fmt.Printf(" %"+pad+"d) %s%s\n", num+1, file.Name(), symbol)
+			lines++
+		}
+	}
+	return lines, nil
+}
+
+// drawSelFooter draws selfs footer
+func drawSelFooter(files []fs.FileInfo, min int, max int, show string, page int, pages int) error {
+	var pos int
+	if show == "first" {
+		pos = min
+	} else if show == "last" {
+		pos = max
+	}
+	symbol, err := utils.FileIndicator(files[pos].Name())
+	if err != nil {
+		return err
+	}
+	fmt.Print("\n")
+	fmt.Printf("# %d/%d) %s%s\n", pos+1, len(files), files[pos].Name(), symbol)
+	fmt.Printf("> %d/%d", page, pages)
+	return nil
+}
+
+// selfs selects a file using keyboard interactively
+func selfs(files []fs.FileInfo) (string, error) {
+	const linesHeader = 4
+	const linesFooter = 3
+	numPadInt := utils.CountDigit(len(files))
+	numPadStr := strconv.Itoa(numPadInt)
+	startOffset := 0
+	if errSc := screen.Clear(); errSc != nil {
+		return "", errSc
+	}
+	screenSize, errSs := screen.Size()
+	if errSs != nil {
+		return "", errSs
+	}
+	screenRows := screenSize[0]
+	numPerPage := screenRows
+	if numPerPage < linesHeader+linesFooter+1 {
+		return "", errors.New("selfs: error: the terminal window is too small")
+	}
+	if errSc := screen.Clear(); errSc != nil {
+		return "", errSc
+	}
+	if errDh := drawSelHeader(numPadStr); errDh != nil {
+		return "", errDh
+	}
+	linesBody, errDb := drawSelBody(files, startOffset, numPerPage-(linesHeader+linesFooter+1), numPadStr)
+	if errDb != nil {
+		return "", errDb
+	}
+	if linesBody == 0 {
+		return "", errors.New("selfs: error: no file was found to select")
+	}
+	numPage := 1
+	numPages := int(math.Ceil(float64(len(files)) / float64(linesBody)))
+	if errDf := drawSelFooter(files, 0, numPerPage-(linesHeader+linesFooter+1), "first", numPage, numPages); errDf != nil {
+		return "", errDf
+	}
+	cursor.ResetModes()
+	curPos := linesHeader + 1
+	cursor.Move(curPos, numPadInt+1)
+	for {
+		key, errKp := utils.KeyPress()
+		if errKp != nil {
+			return "", errKp
+		}
+		keyName, errKn := utils.KeyPressName(key)
+		if errKn != nil {
+			return "", errKn
+		}
+		switch keyName {
+		case "escape":
+			return "", nil
+		case "enter", "return":
+			curFileName := files[(curPos+startOffset)-(linesHeader+1)].Name()
+			return curFileName, nil
+		case "j", "down":
+			if curPos < linesHeader+linesBody {
+				curPos++
+				cursor.Move((linesHeader+linesBody+linesFooter)-1, 1)
+				cursor.ClearCurLine()
+				curFileName := files[(curPos+startOffset)-(linesHeader+1)].Name()
+				symbol, errFi := utils.FileIndicator(curFileName)
+				if errFi != nil {
+					return "", errFi
+				}
+				fmt.Printf("# %d/%d) %s%s", (curPos+startOffset)-linesHeader, len(files), curFileName, symbol)
+				cursor.Move(linesHeader+linesBody+linesFooter, 1)
+				cursor.ClearCurLine()
+				fmt.Printf("> %d/%d", numPage, numPages)
+				cursor.Move(curPos, numPadInt+1)
+			} else {
+				if curPos >= len(files) && numPage >= numPages || numPage >= numPages {
+					continue
+				}
+				if startOffset+(curPos-linesHeader) >= len(files) {
+					return "", errors.New("selfs: error: startOffset number is bigger than the maximum number of files")
+				}
+				numPage++
+				startOffset += curPos - linesHeader
+				limitOffset := startOffset + numPerPage - (linesHeader + linesFooter + 1)
+				if limitOffset > len(files) {
+					limitOffset = len(files)
+				}
+				if errSc := screen.Clear(); errSc != nil {
+					return "", errSc
+				}
+				if errDh := drawSelHeader(numPadStr); errDh != nil {
+					return "", errDh
+				}
+				linesBody, errDb = drawSelBody(files, startOffset, limitOffset, numPadStr)
+				if errDb != nil {
+					return "", errDb
+				}
+				if errDf := drawSelFooter(files, startOffset, limitOffset, "first", numPage, numPages); errDf != nil {
+					return "", errDf
+				}
+				curPos = linesHeader + 1
+				cursor.Move(curPos, numPadInt+1)
+			}
+		case "k", "up":
+			if curPos > linesHeader+1 {
+				curPos--
+				cursor.Move((linesHeader+linesBody+linesFooter)-1, 1)
+				cursor.ClearCurLine()
+				curFileName := files[(curPos+startOffset)-(linesHeader+1)].Name()
+				symbol, errFi := utils.FileIndicator(curFileName)
+				if errFi != nil {
+					return "", errFi
+				}
+				fmt.Printf("# %d/%d) %s%s", (curPos+startOffset)-linesHeader, len(files), curFileName, symbol)
+				cursor.Move(linesHeader+linesBody+linesFooter, 1)
+				cursor.ClearCurLine()
+				fmt.Printf("> %d/%d", numPage, numPages)
+				cursor.Move(curPos, numPadInt+1)
+			} else {
+				if numPage <= 1 {
+					continue
+				}
+				numPage--
+				startOffset -= numPerPage - (linesHeader + linesFooter)
+				limitOffset := (startOffset + numPerPage) - (linesHeader + linesFooter + 1)
+				if errSc := screen.Clear(); errSc != nil {
+					return "", errSc
+				}
+				if errDh := drawSelHeader(numPadStr); errDh != nil {
+					return "", errDh
+				}
+				linesBody, errDb = drawSelBody(files, startOffset, limitOffset, numPadStr)
+				if errDb != nil {
+					return "", errDb
+				}
+				if errDf := drawSelFooter(files, startOffset, limitOffset, "last", numPage, numPages); errDf != nil {
+					return "", errDf
+				}
+				curPos = numPerPage - linesFooter
+				cursor.Move(curPos, numPadInt+1)
+			}
+		case "minus":
+			return "..", nil
+		case "period":
+			return ".", nil
+		default:
+			cursor.Move((linesHeader+linesBody+linesFooter)-1, 1)
+			cursor.ClearCurLine()
+			utils.ErrPrintf("# error: unsupported keystroke '%s'", keyName)
+			cursor.Move(curPos, numPadInt)
+		}
+	}
+}
 
 // helpMenuFs shows fs' help menu information
 func helpMenuFs() string {
@@ -35,7 +239,8 @@ func helpMenuFs() string {
 	help += "exit             # exits the menu\n"
 	help += "number           # plays the selected file\n"
 	help += "pwd              # prints the current working directory\n"
-	help += "stopplay         # stops playing the current media\n"
+	help += "selfs            # selects a file using keyboard interactively (j,k,Enter,Escape) [sel]\n"
+	help += "stopplay         # stops playing the current media [stopp]\n"
 	help += "status           # prints status information\n"
 	help += "mute             # toggles between mute and unmute\n"
 	help += "pause            # toggles between pause and unpause\n"
@@ -99,19 +304,11 @@ func menuFs() error {
 					statusMsg = file.Name()
 				}
 			}
-			if file.IsDir() {
-				fmt.Printf("%s%"+numPad+"d) %s/\n", selCur, num+1, file.Name())
-			} else if file.Mode()&0111 != 0 && file.Mode()&os.ModeSymlink != os.ModeSymlink {
-				fmt.Printf("%s%"+numPad+"d) %s*\n", selCur, num+1, file.Name())
-			} else if file.Mode()&os.ModeNamedPipe != 0 {
-				fmt.Printf("%s%"+numPad+"d) %s|\n", selCur, num+1, file.Name())
-			} else if file.Mode()&os.ModeSocket != 0 {
-				fmt.Printf("%s%"+numPad+"d) %s=\n", selCur, num+1, file.Name())
-			} else if file.Mode()&os.ModeSymlink == os.ModeSymlink {
-				fmt.Printf("%s%"+numPad+"d) %s@\n", selCur, num+1, file.Name())
-			} else {
-				fmt.Printf("%s%"+numPad+"d) %s\n", selCur, num+1, file.Name())
+			symbol, errFi := utils.FileIndicator(file.Name())
+			if errFi != nil {
+				return errFi
 			}
+			fmt.Printf("%s%"+numPad+"d) %s%s\n", selCur, num+1, file.Name(), symbol)
 		}
 		fmt.Printf("\n# %s\n> ", strings.TrimRight(statusMsg, "\n"))
 		scanner := bufio.NewScanner(os.Stdin)
@@ -178,13 +375,22 @@ func menuFs() error {
 			} else {
 				statusMsg = "status\n" + content
 			}
-		case "stopplay":
+		case "stopp", "stopplay":
 			curStream = ""
 			fileSel = ""
 			statusMsg = ""
 			if err := PlayStop(); err != nil {
 				statusMsg = err.Error()
 			}
+		case "sel", "selfs":
+			var errMv error
+			if fileStr, errMv = selfs(files); fileStr == "" || errMv != nil {
+				if errMv != nil {
+					statusMsg = errMv.Error()
+				}
+				continue
+			}
+			fallthrough
 		default:
 			if fileId, errSa := strconv.Atoi(fileStr); errSa == nil {
 				if fileId < 1 || fileId > len(listFiles) {
@@ -243,7 +449,7 @@ func menuFs() error {
 			curStream = ""
 			statusMsg = fileSel
 			cmd := `{"command": ["get_property", "filtered-metadata"]}`
-			if _, errSc := StatusCmd(cmd, "error"); errSc != nil {
+			if _, errSc := StatusCmd(cmd, "error", 1); errSc != nil {
 				statusMsg = errSc.Error()
 			}
 		}
