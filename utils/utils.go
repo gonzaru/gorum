@@ -78,7 +78,7 @@ func JsonPretty(dataJson []byte, prefix string, delim string) (string, error) {
 
 // KeyPress gets the pressed key
 func KeyPress() ([]byte, error) {
-	var key = make([]byte, 3, 3)
+	key := make([]byte, 3, 3)
 	fileFlag := "-f"
 	if runtime.GOOS == "linux" {
 		fileFlag = "-F"
@@ -104,7 +104,7 @@ func KeyPress() ([]byte, error) {
 // KeyPressName returns the name of pressed key
 func KeyPressName(key []byte) (string, error) {
 	var keyName string
-	var keySize = 3
+	keySize := 3
 	if len(key) != keySize {
 		return "", errors.New(fmt.Sprintf("keyPressName: error: key needs to be size %d", keySize))
 	}
@@ -132,7 +132,7 @@ func KeyPressName(key []byte) (string, error) {
 
 // PidFileExists checks if file and pid exists
 func PidFileExists(file string) bool {
-	var status = false
+	status := false
 	if _, errSt := os.Stat(file); errSt != nil {
 		return false
 	}
@@ -150,7 +150,7 @@ func PidFileExists(file string) bool {
 
 // ValidUrl checks if is a valid url format
 func ValidUrl(str string) bool {
-	var status = false
+	status := false
 	if u, err := url.Parse(str); err == nil && u.Scheme != "" && u.Host != "" && u.Path != "" {
 		status = true
 	}

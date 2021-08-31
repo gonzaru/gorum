@@ -31,15 +31,28 @@ import (
 	"github.com/gonzaru/gorum/config"
 )
 
+// checkOS checks if current operating system has been tested
+func checkOS() bool {
+	status := false
+	items := []string{"freebsd", "linux", "netbsd", "openbsd"}
+	for _, item := range items {
+		if item == runtime.GOOS {
+			status = true
+			break
+		}
+	}
+	return status
+}
+
 // CheckOut checks for a valid setup
 func CheckOut() error {
-	if runtime.GOOS != "linux" && runtime.GOOS != "freebsd" {
+	if !checkOS() {
 		wrnMsg := fmt.Sprintf("checkOut: warning: '%s' has not been tested\n", runtime.GOOS)
 		utils.ErrPrint(wrnMsg)
 		log.Printf(wrnMsg)
 		time.Sleep(time.Second)
 	}
-	cmds := []string{"clear", "reset", "setsid", "stty", config.Player}
+	cmds := []string{"clear", "reset", "stty", config.Player}
 	for _, cmd := range cmds {
 		if _, errLp := exec.LookPath(cmd); errLp != nil {
 			return errors.New(fmt.Sprintf("checkOut: error: command '%s' not found\n", cmd))
@@ -112,7 +125,7 @@ func Help() {
 
 // isIdle checks if no file is loaded
 func isIdle() bool {
-	var status = false
+	status := false
 	cmd := `{"command": ["get_property_string", "idle-active"]}`
 	if _, content, errSc := sendCmd(cmd); errSc == nil && content["data"] == "yes" {
 		status = true
@@ -400,6 +413,7 @@ func Start() error {
 	if errSp != nil {
 		return errSp
 	}
+	cmd.Stderr = cmd.Stdout
 	if errCs := cmd.Start(); errCs != nil {
 		return errCs
 	}

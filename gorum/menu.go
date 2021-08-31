@@ -140,10 +140,26 @@ func Menu() error {
 				statusMsg = errOe.Error()
 				continue
 			}
-			cmdCg := exec.Command("setsid", curFile, "start")
-			cmdCg.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-			if errCr := cmdCg.Run(); errCr != nil {
+			cmdCg := exec.Command(curFile, "start")
+			cmdCg.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+			stdout, errSp := cmdCg.StdoutPipe()
+			if errSp != nil {
+				statusMsg = errSp.Error()
+				continue
+			}
+			cmdCg.Stderr = cmdCg.Stdout
+			if errCr := cmdCg.Start(); errCr != nil {
 				statusMsg = errCr.Error()
+				continue
+			}
+			buf := make([]byte, 1024)
+			if _, errSr := stdout.Read(buf); errSr != nil {
+				statusMsg = errSr.Error()
+				continue
+			}
+			statusMsg = string(buf)
+			if errSc := stdout.Close(); errSc != nil {
+				statusMsg = errSc.Error()
 			}
 		case "status":
 			content, err := Status()

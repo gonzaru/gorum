@@ -45,7 +45,7 @@ func drawSelHeader(pad string) error {
 
 // drawSelBody draws selfs body
 func drawSelBody(files []fs.FileInfo, min int, max int, pad string) (int, error) {
-	var lines = 0
+	lines := 0
 	for num, file := range files {
 		if num >= min && num <= max {
 			symbol, err := utils.FileIndicator(file.Name())
