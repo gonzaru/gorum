@@ -108,22 +108,22 @@ func KeyPressName(key []byte) (string, error) {
 	if len(key) != keySize {
 		return "", errors.New(fmt.Sprintf("keyPressName: error: key needs to be size %d", keySize))
 	}
-	if key[0] == 27 && key[1] == 0 && key[2] == 0 {
-		keyName = "escape"
-	} else if key[0] == 10 && key[1] == 0 && key[2] == 0 {
-		keyName = "enter"
-	} else if key[0] == 106 && key[1] == 0 && key[2] == 0 {
-		keyName = "j"
-	} else if key[0] == 107 && key[1] == 0 && key[2] == 0 {
-		keyName = "k"
-	} else if key[0] == 45 && key[1] == 0 && key[2] == 0 {
-		keyName = "minus"
-	} else if key[0] == 46 && key[1] == 0 && key[2] == 0 {
-		keyName = "period"
+	if key[0] != 0 && key[1] == 0 && key[2] == 0 {
+		if key[0] == 27 {
+			keyName = "escape"
+		} else if key[0] == 10 {
+			keyName = "enter"
+		} else {
+			keyName = string(key[0])
+		}
 	} else if key[0] == 27 && key[1] == 91 && key[2] == 65 {
 		keyName = "up"
 	} else if key[0] == 27 && key[1] == 91 && key[2] == 66 {
 		keyName = "down"
+	} else if key[0] == 59 && key[1] == 50 && key[2] == 65 { // <S-Up>
+		keyName = "UP"
+	} else if key[0] == 59 && key[1] == 50 && key[2] == 66 { // <S-Down>
+		keyName = "DOWN"
 	} else {
 		keyName = string(key)
 	}

@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gonzaru/gorum/utils"
 	"io/ioutil"
 	"log"
 	"net"
@@ -29,6 +28,7 @@ import (
 // local packages
 import (
 	"github.com/gonzaru/gorum/config"
+	"github.com/gonzaru/gorum/utils"
 )
 
 // checkOS checks if current operating system has been tested

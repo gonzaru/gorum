@@ -37,7 +37,7 @@ func drawSelHeader(pad string) error {
 	parentDir := pwdSplit[len(pwdSplit)-2]
 	curDir := pwdSplit[len(pwdSplit)-1]
 	fmt.Printf("%"+pad+"s### %s ###\n", "", strings.ToUpper(config.ProgName))
-	fmt.Printf("%"+pad+"s=) help (j,k,Enter,Escape)\n", "")
+	fmt.Printf("%"+pad+"s=) help (j,k,J,K,Enter,Escape,-,.)\n", "")
 	fmt.Printf("%"+pad+"s-) ../ [%s]\n", "", parentDir)
 	fmt.Printf("%"+pad+"s.) ./ [%s]\n", "", curDir)
 	return nil
@@ -132,6 +132,12 @@ func selfs(files []fs.FileInfo) (string, error) {
 		case "enter", "return":
 			curFileName := files[(curPos+startOffset)-(linesHeader+1)].Name()
 			return curFileName, nil
+		case "J", "DOWN":
+			curPos = linesHeader + linesBody
+			cursor.Move(curPos, numPadInt+1)
+		case "K", "UP":
+			curPos = linesHeader + 1
+			cursor.Move(curPos, numPadInt+1)
 		case "j", "down":
 			if curPos < linesHeader+linesBody {
 				curPos++
@@ -214,9 +220,9 @@ func selfs(files []fs.FileInfo) (string, error) {
 				curPos = numPerPage - linesFooter
 				cursor.Move(curPos, numPadInt+1)
 			}
-		case "minus":
+		case "-":
 			return "..", nil
-		case "period":
+		case ".":
 			return ".", nil
 		default:
 			cursor.Move((linesHeader+linesBody+linesFooter)-1, 1)
@@ -239,7 +245,7 @@ func helpMenuFs() string {
 	help += "exit             # exits the menu\n"
 	help += "number           # plays the selected file\n"
 	help += "pwd              # prints the current working directory\n"
-	help += "selfs            # selects a file using keyboard interactively (j,k,Enter,Escape) [sel]\n"
+	help += "selfs            # selects a file using keyboard interactively (j,k,J,K,Enter,Escape,-,.) [sel]\n"
 	help += "stopplay         # stops playing the current media [stopp]\n"
 	help += "status           # prints status information\n"
 	help += "mute             # toggles between mute and unmute\n"
