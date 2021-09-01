@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,14 +27,17 @@ import (
 
 // finishMenu performs actions before leaving the menu
 func finishMenu() error {
-	if err := exec.Command("stty", "-F", "/dev/tty", "echo").Run(); err != nil {
-		log.Fatal(err)
+	fileFlag := "-f"
+	if runtime.GOOS == "linux" {
+		fileFlag = "-F"
 	}
-	if err := exec.Command("stty", "sane").Run(); err != nil {
-		log.Fatal(err)
+	if errEc := exec.Command("stty", fileFlag, "/dev/tty", "echo").Run(); errEc != nil {
+		log.Fatal(errEc)
 	}
-	if err := exec.Command("reset").Run(); err != nil {
-		log.Fatal(err)
+	cmdSs := exec.Command("stty", "sane")
+	cmdSs.Stdin = os.Stdin
+	if errCr := cmdSs.Run(); errCr != nil {
+		log.Fatal(errCr)
 	}
 	return nil
 }

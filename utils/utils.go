@@ -94,6 +94,12 @@ func KeyPress() ([]byte, error) {
 			ErrPrint(errCs)
 			log.Fatal(errCs)
 		}
+		cmdSs := exec.Command("stty", "sane")
+		cmdSs.Stdin = os.Stdin
+		if errCr := cmdSs.Run(); errCr != nil {
+			ErrPrint(errCr)
+			log.Fatal(errCr)
+		}
 	}()
 	if _, errSr := os.Stdin.Read(key); errSr != nil {
 		return nil, errSr

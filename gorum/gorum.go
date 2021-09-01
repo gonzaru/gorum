@@ -52,7 +52,7 @@ func CheckOut() error {
 		log.Printf(wrnMsg)
 		time.Sleep(time.Second)
 	}
-	cmds := []string{"clear", "reset", "stty", config.Player}
+	cmds := []string{"clear", "stty", config.Player}
 	for _, cmd := range cmds {
 		if _, errLp := exec.LookPath(cmd); errLp != nil {
 			return errors.New(fmt.Sprintf("checkOut: error: command '%s' not found\n", cmd))
