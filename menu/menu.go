@@ -1,7 +1,7 @@
 // by Gonzaru
 // Distributed under the terms of the GNU General Public License v3
 
-package gorum
+package menu
 
 import (
 	"bufio"
@@ -21,7 +21,9 @@ import (
 // local packages
 import (
 	"github.com/gonzaru/gorum/config"
+	"github.com/gonzaru/gorum/gorum"
 	"github.com/gonzaru/gorum/screen"
+	"github.com/gonzaru/gorum/sf"
 	"github.com/gonzaru/gorum/utils"
 )
 
@@ -47,7 +49,7 @@ func helpMenu() string {
 	help := "help\n"
 	help += "clear          # clear the terminal screen\n"
 	help += "exit           # exits the menu\n"
-	help += "fs             # launches the fs menu [.]\n"
+	help += "sf             # launches sf selector file [.]\n"
 	help += "number         # plays the selected media stream\n"
 	help += "url            # plays the stream url\n"
 	help += fmt.Sprintf("start          # starts %s\n", config.ProgName)
@@ -59,6 +61,40 @@ func helpMenu() string {
 	help += "video          # toggles between video auto and off\n"
 	help += "help           # shows help menu information [=]\n"
 	return help
+}
+
+// SignalHandler sets signal handler
+func SignalHandler() {
+	chSignal := make(chan os.Signal, 1)
+	chExit := make(chan int)
+	signal.Notify(chSignal, syscall.SIGINT)
+	go func() {
+		for {
+			sig := <-chSignal
+			msg := fmt.Sprintf("\nsignalHandler: info: recived signal '%s'\n", sig)
+			fmt.Print(msg)
+			log.Print(msg)
+			switch sig {
+			case syscall.SIGINT:
+				if err := finishMenu(); err != nil {
+					utils.ErrPrint(err)
+					log.Fatal(err)
+				}
+				chExit <- 0
+			default:
+				errMsg := fmt.Sprintf("\nsignalHandler: error: unsupported signal '%s'\n", sig)
+				utils.ErrPrint(errMsg)
+				log.Print(errMsg)
+				if err := finishMenu(); err != nil {
+					utils.ErrPrint(err)
+					log.Fatal(err)
+				}
+				chExit <- 1
+			}
+		}
+	}()
+	code := <-chExit
+	os.Exit(code)
 }
 
 // Menu plays selected media using a streaming selector
@@ -77,14 +113,14 @@ func Menu() error {
 		keys = append(keys, key)
 	}
 	sort.Ints(keys)
-	if !isRunning() {
+	if !gorum.IsRunning() {
 		statusMsg = fmt.Sprintf("info: '%s' is not running, see help\n", config.ProgName)
 	} else if streamId > 0 {
 		if _, ok := streams[streamId]; ok {
 			statusMsg = streams[streamId]["name"]
 		}
 	}
-	curStream := streamPath()
+	curStream := gorum.StreamPath()
 	numPad := strconv.Itoa(utils.CountDigit(len(streams)))
 	for {
 		if errSc := screen.Clear(); errSc != nil {
@@ -92,7 +128,7 @@ func Menu() error {
 		}
 		fmt.Printf("%"+numPad+"s### %s ###\n", "", strings.ToUpper(config.ProgName))
 		fmt.Printf("%"+numPad+"s=) help\n", "")
-		fmt.Printf("%"+numPad+"s.) fs\n", "")
+		fmt.Printf("%"+numPad+"s.) sf\n", "")
 		for _, key := range keys {
 			selCur = " "
 			if streamId == key || curStream == streams[key]["url"] {
@@ -108,8 +144,8 @@ func Menu() error {
 		scanner.Scan()
 		streamStr = strings.TrimSpace(scanner.Text())
 		switch streamStr {
-		case ".", "fs":
-			if errMe := menuFs(); errMe != nil {
+		case ".", "sf":
+			if errMe := sf.Run(); errMe != nil {
 				statusMsg = errMe.Error()
 			}
 		case "=", "help":
@@ -119,12 +155,12 @@ func Menu() error {
 		case "exit":
 			return nil
 		case "mute", "pause", "video":
-			if errTo := Toggle(streamStr); errTo != nil {
+			if errTo := gorum.Toggle(streamStr); errTo != nil {
 				statusMsg = errTo.Error()
 				continue
 			}
 			cmd := fmt.Sprintf(`{"command": ["get_property_string", "%s"]}`, streamStr)
-			_, content, errSc := sendCmd(cmd)
+			_, content, errSc := gorum.SendCmd(cmd)
 			if errSc != nil {
 				log.Print(errSc)
 				statusMsg = errSc.Error()
@@ -135,7 +171,7 @@ func Menu() error {
 			statusMsg = fmt.Sprintf("info: simply put the stream %s and press ENTER", streamStr)
 		case "start":
 			statusMsg = ""
-			if isRunning() {
+			if gorum.IsRunning() {
 				statusMsg = fmt.Sprintf("menu: error: '%s' is already running\n", config.ProgName)
 				continue
 			}
@@ -166,7 +202,7 @@ func Menu() error {
 				statusMsg = errSc.Error()
 			}
 		case "status":
-			content, err := Status()
+			content, err := gorum.Status()
 			if err != nil {
 				statusMsg = err.Error()
 			} else {
@@ -176,14 +212,14 @@ func Menu() error {
 			curStream = ""
 			streamId = -1
 			statusMsg = ""
-			if err := Stop(); err != nil {
+			if err := gorum.Stop(); err != nil {
 				statusMsg = err.Error()
 			}
 		case "stopp", "stopplay":
 			curStream = ""
 			streamId = -1
 			statusMsg = ""
-			if err := PlayStop(); err != nil {
+			if err := gorum.PlayStop(); err != nil {
 				statusMsg = err.Error()
 			}
 		default:
@@ -200,13 +236,13 @@ func Menu() error {
 				continue
 			}
 			numOptErrors = 0
-			if errPl := Play(streamStr); errPl != nil {
+			if errPl := gorum.Play(streamStr); errPl != nil {
 				log.Print(errPl)
 				statusMsg = errPl.Error()
 				continue
 			}
 			cmd := `{"command": ["get_property", "filtered-metadata"]}`
-			if _, errSc := StatusCmd(cmd, "error", 5); errSc != nil {
+			if _, errSc := gorum.StatusCmd(cmd, "error", 5); errSc != nil {
 				log.Print(errSc)
 				statusMsg = errSc.Error()
 				fmt.Println(statusMsg)
@@ -228,38 +264,4 @@ func Menu() error {
 			}
 		}
 	}
-}
-
-// SignalHandlerMenu sets signal handler for menu
-func SignalHandlerMenu() {
-	chSignal := make(chan os.Signal, 1)
-	chExit := make(chan int)
-	signal.Notify(chSignal, syscall.SIGINT)
-	go func() {
-		for {
-			sig := <-chSignal
-			msg := fmt.Sprintf("\nsignalHandlerMenu: info: recived signal '%s'\n", sig)
-			fmt.Print(msg)
-			log.Print(msg)
-			switch sig {
-			case syscall.SIGINT:
-				if err := finishMenu(); err != nil {
-					utils.ErrPrint(err)
-					log.Fatal(err)
-				}
-				chExit <- 0
-			default:
-				errMsg := fmt.Sprintf("\nsignalHandlerMenu: error: unsupported signal '%s'\n", sig)
-				utils.ErrPrint(errMsg)
-				log.Print(errMsg)
-				if err := finish(); err != nil {
-					utils.ErrPrint(err)
-					log.Fatal(err)
-				}
-				chExit <- 1
-			}
-		}
-	}()
-	code := <-chExit
-	os.Exit(code)
 }

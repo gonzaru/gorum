@@ -46,4 +46,3 @@ func Size() ([]int, error) {
 	size[1] = cols
 	return size, nil
 }
-

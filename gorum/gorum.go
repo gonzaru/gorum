@@ -127,14 +127,14 @@ func Help() {
 func isIdle() bool {
 	status := false
 	cmd := `{"command": ["get_property_string", "idle-active"]}`
-	if _, content, errSc := sendCmd(cmd); errSc == nil && content["data"] == "yes" {
+	if _, content, errSc := SendCmd(cmd); errSc == nil && content["data"] == "yes" {
 		status = true
 	}
 	return status
 }
 
-// isRunning checks if ProgName is locked or already running
-func isRunning() bool {
+// IsRunning checks if ProgName is locked or already running
+func IsRunning() bool {
 	if fi, errOs := os.Stat(config.LockDir); errOs == nil && fi.IsDir() {
 		return true
 	}
@@ -146,12 +146,12 @@ func isRunning() bool {
 
 // Play plays media files
 func Play(file string) error {
-	if !isRunning() {
+	if !IsRunning() {
 		return errors.New(fmt.Sprintf("play: error: '%s' is not running\n", config.ProgName))
 	}
 	if os.Getenv("DISPLAY") == "" {
 		cmd := `{"command": ["set_property", "video", false]}`
-		if _, _, errSc := sendCmd(cmd); errSc != nil {
+		if _, _, errSc := SendCmd(cmd); errSc != nil {
 			return errSc
 		}
 	}
@@ -206,7 +206,7 @@ func playFile(file string) error {
 		}
 	}
 	cmd := "{\"command\": [\"loadfile\", \"" + fileLoad + "\", \"replace\"]}"
-	if _, _, errSc := sendCmd(cmd); errSc != nil {
+	if _, _, errSc := SendCmd(cmd); errSc != nil {
 		return errSc
 	}
 	return nil
@@ -227,7 +227,7 @@ func playStream(stream int) error {
 		}
 	}
 	cmd := "{\"command\": [\"loadfile\", \"" + streams[stream]["url"] + "\", \"replace\"]}"
-	if _, _, errSc := sendCmd(cmd); errSc != nil {
+	if _, _, errSc := SendCmd(cmd); errSc != nil {
 		return errSc
 	}
 	return nil
@@ -235,7 +235,7 @@ func playStream(stream int) error {
 
 // PlayStop stops playing the current media
 func PlayStop() error {
-	if !isRunning() {
+	if !IsRunning() {
 		return errors.New(fmt.Sprintf("playStop: error: '%s' is not running\n", config.ProgName))
 	}
 	if isIdle() {
@@ -251,10 +251,10 @@ func PlayStop() error {
 	return nil
 }
 
-// sendCmd sends command to media player
-func sendCmd(cmd string) ([]byte, map[string]interface{}, error) {
+// SendCmd sends command to media player
+func SendCmd(cmd string) ([]byte, map[string]interface{}, error) {
 	var content map[string]interface{}
-	if !isRunning() {
+	if !IsRunning() {
 		return nil, nil, errors.New(fmt.Sprintf("sendCmd: error: '%s' is not running\n", config.ProgName))
 	}
 	if !json.Valid([]byte(cmd)) {
@@ -300,7 +300,7 @@ func sendCmds(cmds []string, async bool) ([][]interface{}, error) {
 		content  map[string]interface{}
 		err      error
 	)
-	if !isRunning() {
+	if !IsRunning() {
 		return nil, errors.New(fmt.Sprintf("sendCmds: error: '%s' is not running\n", config.ProgName))
 	}
 	arrSc := make([][]interface{}, len(cmds))
@@ -310,7 +310,7 @@ func sendCmds(cmds []string, async bool) ([][]interface{}, error) {
 		for num, cmd := range cmds {
 			go func(num int, cmd string) {
 				defer wg.Done()
-				dataJson, content, err = sendCmd(cmd)
+				dataJson, content, err = SendCmd(cmd)
 				arrSc[num] = append(arrSc[num], dataJson)
 				arrSc[num] = append(arrSc[num], content)
 				arrSc[num] = append(arrSc[num], err)
@@ -323,7 +323,7 @@ func sendCmds(cmds []string, async bool) ([][]interface{}, error) {
 		wg.Wait()
 	} else {
 		for num, cmd := range cmds {
-			dataJson, content, err = sendCmd(cmd)
+			dataJson, content, err = SendCmd(cmd)
 			arrSc[num] = append(arrSc[num], dataJson)
 			arrSc[num] = append(arrSc[num], content)
 			arrSc[num] = append(arrSc[num], err)
@@ -394,7 +394,7 @@ func SignalHandler() {
 
 // Start starts the ProgName
 func Start() error {
-	if isRunning() {
+	if IsRunning() {
 		return errors.New(fmt.Sprintf("start: error: '%s' is already running or locked\n", config.ProgName))
 	}
 	if errSu := setUp(); errSu != nil {
@@ -454,7 +454,7 @@ func Start() error {
 
 // Status prints status information
 func Status() (string, error) {
-	if !isRunning() {
+	if !IsRunning() {
 		return "", errors.New(fmt.Sprintf("status: error: '%s' is not running\n", config.ProgName))
 	}
 	content, err := statusPlayer()
@@ -468,12 +468,12 @@ func StatusCmd(cmd string, field string, maxTries int) (map[string]interface{}, 
 		err     error = nil
 		errSc   error = nil
 	)
-	if !isRunning() {
+	if !IsRunning() {
 		return nil, errors.New(fmt.Sprintf("statusCmd: error: '%s' is not running\n", config.ProgName))
 	}
 	for i := 0; i < maxTries; i++ {
 		time.Sleep(time.Second)
-		_, content, errSc = sendCmd(cmd)
+		_, content, errSc = SendCmd(cmd)
 		if errSc != nil {
 			err = errSc
 			break
@@ -497,7 +497,7 @@ func StatusCmd(cmd string, field string, maxTries int) (map[string]interface{}, 
 // statusPlayer prints media player status information
 func statusPlayer() (string, error) {
 	cmd := `{"command": ["get_property", "metadata"]}`
-	dataJson, _, errSc := sendCmd(cmd)
+	dataJson, _, errSc := SendCmd(cmd)
 	if errSc != nil {
 		return "", errSc
 	}
@@ -532,13 +532,13 @@ func statusPlayer() (string, error) {
 	return statusInfo, nil
 }
 
-// streamPath returns the active stream path
-func streamPath() string {
-	if !isRunning() {
+// StreamPath returns the active stream path
+func StreamPath() string {
+	if !IsRunning() {
 		return ""
 	}
 	cmd := `{"command": ["get_property_string", "path"]}`
-	_, content, errSc := sendCmd(cmd)
+	_, content, errSc := SendCmd(cmd)
 	if errSc != nil {
 		return ""
 	}
@@ -547,7 +547,7 @@ func streamPath() string {
 
 // Stop stops the ProgName
 func Stop() error {
-	if !isRunning() {
+	if !IsRunning() {
 		return errors.New(fmt.Sprintf("stop: error: '%s' is not running\n", config.ProgName))
 	}
 	defer func() {
@@ -589,7 +589,7 @@ func stopPlayer() error {
 
 // Toggle toggles property option
 func Toggle(property string) error {
-	if !isRunning() {
+	if !IsRunning() {
 		return errors.New(fmt.Sprintf("toggle: error: '%s' is not running\n", config.ProgName))
 	}
 	if property == "video" {
@@ -598,7 +598,7 @@ func Toggle(property string) error {
 		}
 	} else {
 		cmd := fmt.Sprintf(`{"command": ["cycle", "%s"]}`, property)
-		if _, _, errSc := sendCmd(cmd); errSc != nil {
+		if _, _, errSc := SendCmd(cmd); errSc != nil {
 			return errSc
 		}
 	}
@@ -608,18 +608,18 @@ func Toggle(property string) error {
 // toggleVideo toggles between video auto and off
 func toggleVideo() error {
 	cmdGv := `{"command": ["get_property_string", "video"]}`
-	_, content, errGv := sendCmd(cmdGv)
+	_, content, errGv := SendCmd(cmdGv)
 	if errGv != nil {
 		return errGv
 	}
 	if content["data"] == "auto" || content["data"] == "yes" || content["data"] == "1" {
 		cmdSf := `{"command": ["set_property", "video", false]}`
-		if _, _, errSf := sendCmd(cmdSf); errSf != nil {
+		if _, _, errSf := SendCmd(cmdSf); errSf != nil {
 			return errSf
 		}
 	} else {
 		cmdSa := `{"command": ["set_property", "video", "auto"]}`
-		if _, _, errSa := sendCmd(cmdSa); errSa != nil {
+		if _, _, errSa := SendCmd(cmdSa); errSa != nil {
 			return errSa
 		}
 	}

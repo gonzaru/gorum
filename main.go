@@ -12,6 +12,7 @@ import (
 // local packages
 import (
 	"github.com/gonzaru/gorum/gorum"
+	"github.com/gonzaru/gorum/menu"
 	"github.com/gonzaru/gorum/utils"
 )
 
@@ -36,8 +37,8 @@ func main() {
 	case "help":
 		gorum.Help()
 	case "menu":
-		go gorum.SignalHandlerMenu()
-		if errMe := gorum.Menu(); errMe != nil {
+		go menu.SignalHandler()
+		if errMe := menu.Menu(); errMe != nil {
 			utils.ErrPrint(errMe)
 			log.Fatal(errMe)
 		}

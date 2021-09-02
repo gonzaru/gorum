@@ -44,20 +44,20 @@ func ErrPrintf(format string, v ...interface{}) {
 // FileIndicator returns an indicator that identifies a file (*/=@|)
 func FileIndicator(file string) (string, error) {
 	var symbol string
-	fi, err := os.Stat(file)
+	fi, err := os.Lstat(file)
 	if err != nil {
 		return "", err
 	}
-	if fi.IsDir() {
+	if fi.Mode()&os.ModeSymlink == os.ModeSymlink {
+		symbol = "@"
+	} else if fi.IsDir() {
 		symbol = "/"
-	} else if fi.Mode()&0111 != 0 && fi.Mode()&os.ModeSymlink != os.ModeSymlink {
+	} else if fi.Mode()&0111 != 0 {
 		symbol = "*"
 	} else if fi.Mode()&os.ModeNamedPipe != 0 {
 		symbol = "|"
 	} else if fi.Mode()&os.ModeSocket != 0 {
 		symbol = "="
-	} else if fi.Mode()&os.ModeSymlink == os.ModeSymlink {
-		symbol = "@"
 	} else {
 		symbol = ""
 	}
