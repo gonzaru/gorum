@@ -197,7 +197,7 @@ func Menu() error {
 				statusMsg = errSr.Error()
 				continue
 			}
-			statusMsg = string(buf)
+			statusMsg = strings.Replace(string(buf), "\n", "", -1)
 			if errSc := stdout.Close(); errSc != nil {
 				statusMsg = errSc.Error()
 			}
