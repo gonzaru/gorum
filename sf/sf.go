@@ -56,7 +56,7 @@ func helpSF() string {
 	help += "r       # redraws terminal screen\n"
 	help += "Enter   # selects the file or directory\n"
 	help += "Escape  # exits sf\n"
-	help += "=       # shows sf' help information\n"
+	help += "?       # shows sf' help information\n"
 	return help
 }
 
@@ -66,7 +66,7 @@ func (sf *selectFile) drawHeader() error {
 	parentDir := pwdSplit[len(pwdSplit)-2]
 	curDir := pwdSplit[len(pwdSplit)-1]
 	fmt.Printf("%"+sf.padStr+"s### %s ###\n", "", strings.ToUpper(config.ProgName))
-	fmt.Printf("%"+sf.padStr+"s=) help (j,k,Enter,Escape)\n", "")
+	fmt.Printf("%"+sf.padStr+"s?) help\n", "")
 	fmt.Printf("%"+sf.padStr+"s-) ../ [%s]\n", "", parentDir)
 	fmt.Printf("%"+sf.padStr+"s.) ./ [%s]\n", "", curDir)
 	return nil
@@ -262,7 +262,7 @@ func Run() error {
 				return errKn
 			}
 			switch keyName {
-			case "=":
+			case "?":
 				cursor.Move((sf.linesHeader+sf.linesBody+sf.linesFooter)-1, 1)
 				cursor.ClearCurLine()
 				fmt.Print(helpSF())
@@ -357,13 +357,13 @@ func Run() error {
 						return errPp
 					}
 				}
-			case "h":
+			case "h", "left":
 				if sf.pages > 1 {
 					if errNp := sf.prevPage(true); errNp != nil {
 						return errNp
 					}
 				}
-			case "l":
+			case "l", "right":
 				if sf.pages > 1 {
 					sf.curPos = sf.linesHeader + sf.linesBody
 					if errNp := sf.nextPage(); errNp != nil {
@@ -375,7 +375,7 @@ func Run() error {
 			default:
 				cursor.Move((sf.linesHeader+sf.linesBody+sf.linesFooter)-1, 1)
 				cursor.ClearCurLine()
-				utils.ErrPrintf("# error: unsupported keystroke '%s'", keyName)
+				utils.ErrPrintf("# error: keystroke '%s' is not supported, press '?' for help", keyName)
 				cursor.Move(sf.curPos, sf.padInt+1)
 			}
 		}

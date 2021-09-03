@@ -59,7 +59,7 @@ func helpMenu() string {
 	help += "mute           # toggles between mute and unmute\n"
 	help += "pause          # toggles between pause and unpause\n"
 	help += "video          # toggles between video auto and off\n"
-	help += "help           # shows help menu information [=]\n"
+	help += "help           # shows help menu information [?]\n"
 	return help
 }
 
@@ -127,7 +127,7 @@ func Menu() error {
 			return errSc
 		}
 		fmt.Printf("%"+numPad+"s### %s ###\n", "", strings.ToUpper(config.ProgName))
-		fmt.Printf("%"+numPad+"s=) help\n", "")
+		fmt.Printf("%"+numPad+"s?) help\n", "")
 		fmt.Printf("%"+numPad+"s.) sf\n", "")
 		for _, key := range keys {
 			selCur = " "
@@ -148,7 +148,7 @@ func Menu() error {
 			if errMe := sf.Run(); errMe != nil {
 				statusMsg = errMe.Error()
 			}
-		case "=", "help":
+		case "?", "help":
 			statusMsg = helpMenu()
 		case "clear":
 			statusMsg = ""

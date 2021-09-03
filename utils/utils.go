@@ -126,6 +126,10 @@ func KeyPressName(key []byte) (string, error) {
 		keyName = "up"
 	} else if key[0] == 27 && key[1] == 91 && key[2] == 66 {
 		keyName = "down"
+	} else if key[0] == 27 && key[1] == 91 && key[2] == 67 {
+		keyName = "right"
+	} else if key[0] == 27 && key[1] == 91 && key[2] == 68 {
+		keyName = "left"
 	} else if key[0] == 59 && key[1] == 50 && key[2] == 65 { // <S-Up>
 		keyName = "UP"
 	} else if key[0] == 59 && key[1] == 50 && key[2] == 66 { // <S-Down>
