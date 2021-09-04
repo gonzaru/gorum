@@ -17,7 +17,7 @@ var (
 	LockDir           = fmt.Sprintf("%s/%s-gorum.lock", tmpDir, userName)
 	PidFile           = fmt.Sprintf("%s/%s-gorum.pid", tmpDir, userName)
 	Player            = "mpv"
-	PlayerArgs        = []string{"--msg-level=all=v", "-idle=yes", "--input-ipc-server=" + PlayerControlFile}
+	PlayerArgs        = []string{"--msg-level=all=v", "--idle=yes", "--input-ipc-server=" + PlayerControlFile}
 	PlayerControlFile = fmt.Sprintf("%s/%s-gorum-player-control.socket", tmpDir, userName)
 	PlayerPidFile     = fmt.Sprintf("%s/%s-gorum-player.pid", tmpDir, userName)
 	GorumLog          = fmt.Sprintf("%s/%s-gorum.log", tmpDir, userName)

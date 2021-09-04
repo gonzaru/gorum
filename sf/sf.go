@@ -47,6 +47,7 @@ func helpSF() string {
 	help += ".       # lists the current directory contents\n"
 	help += "-       # changes to parent directory\n"
 	help += "_       # changes to previous directory [^,p]\n"
+	help += "~       # changes to home user directory\n"
 	help += "h       # goes to previous page\n"
 	help += "l       # goes to next page\n"
 	help += "j       # goes one line downward\n"
@@ -289,6 +290,16 @@ func Run() error {
 					sf.oldPwd = sf.pwd
 					keyLoop = false
 				}
+			case "~":
+				homeDir, errUh := os.UserHomeDir()
+				if errUh != nil {
+					return errUh
+				}
+				if errCd := os.Chdir(homeDir); errCd != nil {
+					return errCd
+				}
+				sf.oldPwd = sf.pwd
+				keyLoop = false
 			case ".":
 				keyLoop = false
 			case "escape":
