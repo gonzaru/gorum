@@ -86,8 +86,10 @@ func cleanUp() error {
 // controlFileExists checks if controlFile exists and is in socket mode
 func controlFileExists(file string) (bool, error) {
 	fi, err := os.Stat(config.PlayerControlFile)
-	if err != nil {
+	if os.IsNotExist(err) {
 		return false, errors.New(fmt.Sprintf("controlFileExists: error: '%s' no such file or directory\n", file))
+	} else if err != nil {
+		return false, err
 	}
 	if fi.Mode()&os.ModeSocket == 0 {
 		return false, errors.New(fmt.Sprintf("controlFileExists: error: '%s' is not a socket file\n", file))
@@ -138,7 +140,7 @@ func IsRunning() bool {
 	if fi, errOs := os.Stat(config.LockDir); errOs == nil && fi.IsDir() {
 		return true
 	}
-	if utils.PidFileExists(config.PidFile) {
+	if status, errPf := utils.PidFileExists(config.PidFile); status && errPf == nil {
 		return true
 	}
 	return false
@@ -430,6 +432,17 @@ func Start() error {
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
 		line := scanner.Text()
+		if strings.Contains(line, "[cplayer] audio EOF reached") {
+			if _, errOs := os.Stat(config.WmFile); errOs == nil {
+				if errOr := os.Remove(config.WmFile); errOr != nil {
+					return errOr
+				}
+				if errWb := wmBarUpdate(); errWb != nil {
+					return errWb
+				}
+			}
+			continue
+		}
 		regexTitle := regexp.MustCompile(`^\sicy-title:\s|^Title:\s|^\[cplayer].*/force-media-title=`)
 		if strings.Contains(line, "[file] Opening ") {
 			lineSplit := strings.Split(line, "/")
@@ -570,7 +583,7 @@ func Stop() error {
 
 // stopPlayer stops the media player
 func stopPlayer() error {
-	if !utils.PidFileExists(config.PlayerPidFile) {
+	if status, errPf := utils.PidFileExists(config.PlayerPidFile); !status && errPf == nil {
 		return nil
 	}
 	content, errRf := ioutil.ReadFile(config.PlayerPidFile)

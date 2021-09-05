@@ -19,6 +19,7 @@ var (
 	Player     = "mpv"
 	PlayerArgs = []string{
 		"--msg-level=all=v",
+		"--network-timeout=10",
 		"--cache=no",
 		"--cache-pause=no",
 		"--keep-open=always",
@@ -32,19 +33,9 @@ var (
 	WmDoBarUpdate     = wmCheckBarUpdate("wmbarupdate")
 	WmFile            = fmt.Sprintf("%s/%s-gorum-wm.txt", tmpDir, userName)
 	WmFilePerms       = os.FileMode(0600)
-	tmpDir            = getTmpDir()
+	tmpDir            = os.TempDir()
 	userName          = getUserName()
 )
-
-// getTmpDir
-func getTmpDir() string {
-	var defTmpDir = "/tmp"
-	userTmpDir := os.Getenv("TMPDIR")
-	if userTmpDir != "" {
-		defTmpDir = userTmpDir
-	}
-	return defTmpDir
-}
 
 // getUserName
 func getUserName() string {

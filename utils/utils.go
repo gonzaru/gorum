@@ -45,7 +45,9 @@ func ErrPrintf(format string, v ...interface{}) {
 func FileIndicator(file string) (string, error) {
 	var symbol string
 	fi, err := os.Lstat(file)
-	if err != nil {
+	if os.IsNotExist(err) {
+		return "", errors.New(fmt.Sprintf("fileIndicator: error: '%s' no such file or directory\n", file))
+	} else if err != nil {
 		return "", err
 	}
 	if fi.Mode()&os.ModeSymlink == os.ModeSymlink {
@@ -141,21 +143,29 @@ func KeyPressName(key []byte) (string, error) {
 }
 
 // PidFileExists checks if file and pid exists
-func PidFileExists(file string) bool {
+func PidFileExists(file string) (bool, error) {
 	status := false
-	if _, errSt := os.Stat(file); errSt != nil {
-		return false
+	if _, errSt := os.Stat(file); os.IsNotExist(errSt) {
+		return false, nil
+	} else if errSt != nil {
+		return false, errSt
 	}
 	content, errRf := ioutil.ReadFile(file)
 	if errRf != nil {
-		return false
+		return false, errRf
 	}
 	pid := strings.TrimRight(string(content), "\n")
 	pidPath := "/proc/" + pid
-	if fi, errOs := os.Stat(pidPath); errOs == nil && fi.IsDir() {
+	fi, errOs := os.Stat(pidPath)
+	if os.IsNotExist(errOs) {
+		return false, nil
+	} else if errOs != nil {
+		return false, errOs
+	}
+	if fi.IsDir() {
 		status = true
 	}
-	return status
+	return status, nil
 }
 
 // ValidUrl checks if is a valid url format
