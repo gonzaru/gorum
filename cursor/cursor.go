@@ -3,9 +3,7 @@
 
 package cursor
 
-import (
-	"fmt"
-)
+import "fmt"
 
 // Escape ASCII hexadecimal escape character
 const Escape = "\x1b"
