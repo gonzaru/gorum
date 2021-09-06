@@ -317,7 +317,7 @@ func Run() error {
 					}
 					fi, errOs := os.Stat(symlinkPath)
 					if os.IsNotExist(errOs) {
-						return errors.New(fmt.Sprintf("run: error: '%s' no such file or directory\n", symlinkPath))
+						return fmt.Errorf("run: error: '%s' no such file or directory\n", symlinkPath)
 					} else if errOs != nil {
 						return errOs
 					}

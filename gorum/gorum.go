@@ -7,7 +7,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -55,7 +54,7 @@ func CheckOut() error {
 	cmds := []string{"clear", "stty", config.Player}
 	for _, cmd := range cmds {
 		if _, errLp := exec.LookPath(cmd); errLp != nil {
-			return errors.New(fmt.Sprintf("checkOut: error: command '%s' not found\n", cmd))
+			return fmt.Errorf("checkOut: error: command '%s' not found\n", cmd)
 		}
 	}
 	return nil
@@ -87,12 +86,12 @@ func cleanUp() error {
 func controlFileExists(file string) (bool, error) {
 	fi, err := os.Stat(config.PlayerControlFile)
 	if os.IsNotExist(err) {
-		return false, errors.New(fmt.Sprintf("controlFileExists: error: '%s' no such file or directory\n", file))
+		return false, fmt.Errorf("controlFileExists: error: '%s' no such file or directory\n", file)
 	} else if err != nil {
 		return false, err
 	}
 	if fi.Mode()&os.ModeSocket == 0 {
-		return false, errors.New(fmt.Sprintf("controlFileExists: error: '%s' is not a socket file\n", file))
+		return false, fmt.Errorf("controlFileExists: error: '%s' is not a socket file\n", file)
 	}
 	return true, nil
 }
@@ -149,7 +148,7 @@ func IsRunning() bool {
 // Play plays media files
 func Play(file string) error {
 	if !IsRunning() {
-		return errors.New(fmt.Sprintf("play: error: '%s' is not running\n", config.ProgName))
+		return fmt.Errorf("play: error: '%s' is not running\n", config.ProgName)
 	}
 	if os.Getenv("DISPLAY") == "" {
 		cmd := `{"command": ["set_property", "video", false]}`
@@ -182,7 +181,7 @@ func playFile(file string) error {
 	)
 	if fi, errOs := os.Stat(file); errOs == nil {
 		if fi.IsDir() {
-			return errors.New(fmt.Sprintf("playFile: error: '%s' is a directory, not a file\n", file))
+			return fmt.Errorf("playFile: error: '%s' is a directory, not a file\n", file)
 		}
 		isLocal = true
 	} else if utils.ValidUrl(file) {
@@ -190,7 +189,7 @@ func playFile(file string) error {
 		fileLoad = file
 	}
 	if !isLocal && !isStream {
-		return errors.New(fmt.Sprintf("playFile: error: '%s' no such file or stream url\n", file))
+		return fmt.Errorf("playFile: error: '%s' no such file or stream url\n", file)
 	}
 	if isLocal {
 		fileAbs, errFa := filepath.Abs(file)
@@ -218,7 +217,7 @@ func playFile(file string) error {
 func playStream(stream int) error {
 	streams := config.Streams
 	if _, ok := streams[stream]["url"]; !ok {
-		return errors.New(fmt.Sprintf("playStream: error: key map '%d' not found in streams\n", stream))
+		return fmt.Errorf("playStream: error: key map '%d' not found in streams\n", stream)
 	}
 	if errPs := PlayStop(); errPs != nil {
 		return errPs
@@ -238,7 +237,7 @@ func playStream(stream int) error {
 // PlayStop stops playing the current media
 func PlayStop() error {
 	if !IsRunning() {
-		return errors.New(fmt.Sprintf("playStop: error: '%s' is not running\n", config.ProgName))
+		return fmt.Errorf("playStop: error: '%s' is not running\n", config.ProgName)
 	}
 	if isIdle() {
 		return nil
@@ -257,10 +256,10 @@ func PlayStop() error {
 func SendCmd(cmd string) ([]byte, map[string]interface{}, error) {
 	var content map[string]interface{}
 	if !IsRunning() {
-		return nil, nil, errors.New(fmt.Sprintf("sendCmd: error: '%s' is not running\n", config.ProgName))
+		return nil, nil, fmt.Errorf("sendCmd: error: '%s' is not running\n", config.ProgName)
 	}
 	if !json.Valid([]byte(cmd)) {
-		return nil, nil, errors.New(fmt.Sprintf("sendCmd: error: invalid json %s\n", cmd))
+		return nil, nil, fmt.Errorf("sendCmd: error: invalid json %s\n", cmd)
 	}
 	if status, errCf := controlFileExists(config.PlayerControlFile); !status || errCf != nil {
 		return nil, nil, errCf
@@ -287,7 +286,7 @@ func SendCmd(cmd string) ([]byte, map[string]interface{}, error) {
 	}
 	dataJson := bytes.Split(recvData, []byte{'\n'})[0]
 	if !json.Valid(dataJson) {
-		return nil, nil, errors.New(fmt.Sprintf("sendCmd: error: invalid json %s\n", cmd))
+		return nil, nil, fmt.Errorf("sendCmd: error: invalid json %s\n", cmd)
 	}
 	if errJu := json.Unmarshal(dataJson, &content); errJu != nil {
 		return nil, nil, errJu
@@ -303,7 +302,7 @@ func sendCmds(cmds []string, async bool) ([][]interface{}, error) {
 		err      error
 	)
 	if !IsRunning() {
-		return nil, errors.New(fmt.Sprintf("sendCmds: error: '%s' is not running\n", config.ProgName))
+		return nil, fmt.Errorf("sendCmds: error: '%s' is not running\n", config.ProgName)
 	}
 	arrSc := make([][]interface{}, len(cmds))
 	if async {
@@ -397,7 +396,7 @@ func SignalHandler() {
 // Start starts the ProgName
 func Start() error {
 	if IsRunning() {
-		return errors.New(fmt.Sprintf("start: error: '%s' is already running or locked\n", config.ProgName))
+		return fmt.Errorf("start: error: '%s' is already running or locked\n", config.ProgName)
 	}
 	if errSu := setUp(); errSu != nil {
 		return errSu
@@ -460,7 +459,7 @@ func Start() error {
 		}
 	}
 	if errCw := cmd.Wait(); errCw != nil {
-		return errors.New(fmt.Sprintf("start: error: '%s' command error %s\n", config.Player, errCw.Error()))
+		return fmt.Errorf("start: error: '%s' command error %s\n", config.Player, errCw.Error())
 	}
 	return nil
 }
@@ -468,7 +467,7 @@ func Start() error {
 // Status prints status information
 func Status() (string, error) {
 	if !IsRunning() {
-		return "", errors.New(fmt.Sprintf("status: error: '%s' is not running\n", config.ProgName))
+		return "", fmt.Errorf("status: error: '%s' is not running\n", config.ProgName)
 	}
 	content, err := statusPlayer()
 	return content, err
@@ -482,7 +481,7 @@ func StatusCmd(cmd string, field string, maxTries int) (map[string]interface{}, 
 		errSc   error = nil
 	)
 	if !IsRunning() {
-		return nil, errors.New(fmt.Sprintf("statusCmd: error: '%s' is not running\n", config.ProgName))
+		return nil, fmt.Errorf("statusCmd: error: '%s' is not running\n", config.ProgName)
 	}
 	for i := 0; i < maxTries; i++ {
 		time.Sleep(time.Second)
@@ -501,7 +500,7 @@ func StatusCmd(cmd string, field string, maxTries int) (map[string]interface{}, 
 			}
 		}
 		if i == maxTries-1 {
-			err = errors.New(fmt.Sprintf("statusCmd: error: property '%s' unavailable\n", field))
+			err = fmt.Errorf("statusCmd: error: property '%s' unavailable\n", field)
 		}
 	}
 	return content, err
@@ -561,7 +560,7 @@ func StreamPath() string {
 // Stop stops the ProgName
 func Stop() error {
 	if !IsRunning() {
-		return errors.New(fmt.Sprintf("stop: error: '%s' is not running\n", config.ProgName))
+		return fmt.Errorf("stop: error: '%s' is not running\n", config.ProgName)
 	}
 	defer func() {
 		if errFi := finish(); errFi != nil {
@@ -603,7 +602,7 @@ func stopPlayer() error {
 // Toggle toggles property option
 func Toggle(property string) error {
 	if !IsRunning() {
-		return errors.New(fmt.Sprintf("toggle: error: '%s' is not running\n", config.ProgName))
+		return fmt.Errorf("toggle: error: '%s' is not running\n", config.ProgName)
 	}
 	if property == "video" {
 		if errTv := toggleVideo(); errTv != nil {
