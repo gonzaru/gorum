@@ -37,7 +37,7 @@ var (
 	userName          = getUserName()
 )
 
-// getUserName
+// getUserName returns the current user
 func getUserName() string {
 	usc, err := user.Current()
 	if err != nil {
@@ -46,7 +46,7 @@ func getUserName() string {
 	return usc.Username
 }
 
-// wmCheckBarUpdate
+// wmCheckBarUpdate checks if wmbarupdate command exists
 func wmCheckBarUpdate(cmd string) bool {
 	_, err := exec.LookPath(cmd)
 	return err == nil

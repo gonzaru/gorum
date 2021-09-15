@@ -46,21 +46,22 @@ func finishMenu() error {
 
 // helpMenu shows help menu information
 func helpMenu() string {
-	help := "help\n"
-	help += "clear     # clear the terminal screen\n"
-	help += "exit      # exits the menu\n"
-	help += "sf        # launches sf selector file [.]\n"
-	help += "number    # plays the selected media stream\n"
-	help += "url       # plays the stream url\n"
-	help += "start     # starts " + config.ProgName + "\n"
-	help += "stop      # stops " + config.ProgName + "\n"
-	help += "stopplay  # stops playing the current media [stopp]\n"
-	help += "status    # prints status information\n"
-	help += "mute      # toggles between mute and unmute\n"
-	help += "pause     # toggles between pause and unpause\n"
-	help += "video     # toggles between video auto and off\n"
-	help += "help      # shows help menu information [?]\n"
-	return help
+	var help strings.Builder
+	help.WriteString("help\n")
+	help.WriteString("clear     # clear the terminal screen\n")
+	help.WriteString("exit      # exits the menu\n")
+	help.WriteString("sf        # launches sf selector file [.]\n")
+	help.WriteString("number    # plays the selected media stream\n")
+	help.WriteString("url       # plays the stream url\n")
+	help.WriteString("start     # starts " + config.ProgName + "\n")
+	help.WriteString("stop      # stops " + config.ProgName + "\n")
+	help.WriteString("stopplay  # stops playing the current media [stopp]\n")
+	help.WriteString("status    # prints status information\n")
+	help.WriteString("mute      # toggles between mute and unmute\n")
+	help.WriteString("pause     # toggles between pause and unpause\n")
+	help.WriteString("video     # toggles between video auto and off\n")
+	help.WriteString("help      # shows help menu information [?]\n")
+	return help.String()
 }
 
 // SignalHandler sets signal handler

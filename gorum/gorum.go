@@ -109,7 +109,7 @@ func finish() error {
 
 // Help shows help information
 func Help() {
-	fmt.Printf("Usage:\n")
+	fmt.Print("Usage:\n")
 	fmt.Printf("  %s number         # number key id from config.Streams\n", config.ProgName)
 	fmt.Printf("  %s url            # plays the stream url\n", config.ProgName)
 	fmt.Printf("  %s /path/to/file  # plays the local file\n", config.ProgName)

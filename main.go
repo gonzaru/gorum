@@ -30,7 +30,7 @@ func main() {
 	lenArgs := len(args)
 	if lenArgs == 0 {
 		gorum.Help()
-		os.Exit(0)
+		os.Exit(1)
 	}
 	arg := args[0]
 	switch arg {

@@ -43,22 +43,23 @@ type selectFile struct {
 
 // helpSF shows sf' help information
 func helpSF() string {
-	help := "# help\n"
-	help += ".       # lists the current directory contents\n"
-	help += "-       # changes to parent directory\n"
-	help += "_       # changes to previous directory [^,p]\n"
-	help += "~       # changes to home user directory\n"
-	help += "h       # goes to previous page\n"
-	help += "l       # goes to next page\n"
-	help += "j       # goes one line downward\n"
-	help += "k       # goes one line upward\n"
-	help += "J       # goes to bottom line\n"
-	help += "K       # goes to top line\n"
-	help += "r       # redraws terminal screen\n"
-	help += "Enter   # selects the file or directory\n"
-	help += "Escape  # exits sf\n"
-	help += "?       # shows sf' help information\n"
-	return help
+	var help strings.Builder
+	help.WriteString("# help\n")
+	help.WriteString(".       # lists the current directory contents\n")
+	help.WriteString("-       # changes to parent directory\n")
+	help.WriteString("_       # changes to previous directory [^,p]\n")
+	help.WriteString("~       # changes to home user directory\n")
+	help.WriteString("h       # goes to previous page\n")
+	help.WriteString("l       # goes to next page\n")
+	help.WriteString("j       # goes one line downward\n")
+	help.WriteString("k       # goes one line upward\n")
+	help.WriteString("J       # goes to bottom line\n")
+	help.WriteString("K       # goes to top line\n")
+	help.WriteString("r       # redraws terminal screen\n")
+	help.WriteString("Enter   # selects the file or directory\n")
+	help.WriteString("Escape  # exits sf\n")
+	help.WriteString("?       # shows sf' help information\n")
+	return help.String()
 }
 
 // drawHeader draws sf header
