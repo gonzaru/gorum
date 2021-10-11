@@ -249,6 +249,14 @@ func PlayStop() error {
 	if _, errSc := sendCmds(cmds, false); errSc != nil {
 		return errSc
 	}
+	if _, errOs := os.Stat(config.WmFile); errOs == nil {
+		if errOr := os.Remove(config.WmFile); errOr != nil {
+			return errOr
+		}
+		if errWb := wmBarUpdate(); errWb != nil {
+			return errWb
+		}
+	}
 	return nil
 }
 
