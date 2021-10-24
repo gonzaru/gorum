@@ -117,6 +117,7 @@ func Help() {
 	fmt.Printf("  %s stop           # stops %s\n", config.ProgName, config.ProgName)
 	fmt.Printf("  %s stopplay       # stops playing the current media file [stopp]\n", config.ProgName)
 	fmt.Printf("  %s status         # prints status information\n", config.ProgName)
+	fmt.Printf("  %s seek +n/-n     # seeks forward (+n) or backward (-n) number in seconds\n", config.ProgName)
 	fmt.Printf("  %s mute           # toggles between mute and unmute\n", config.ProgName)
 	fmt.Printf("  %s pause          # toggles between pause and unpause\n", config.ProgName)
 	fmt.Printf("  %s video          # toggles between video auto and off\n", config.ProgName)
@@ -256,6 +257,21 @@ func PlayStop() error {
 		if errWb := wmBarUpdate(); errWb != nil {
 			return errWb
 		}
+	}
+	return nil
+}
+
+// Seek seeks forward (+n) or backward (-n) in seconds
+func Seek(seconds int) error {
+	if !IsRunning() {
+		return fmt.Errorf("seek: error: '%s' is not running\n", config.ProgName)
+	}
+	if isIdle() {
+		return fmt.Errorf("seek: error: '%s' is idle\n", config.ProgName)
+	}
+	cmd := fmt.Sprintf(`{"command": ["seek", "%d"]}`, seconds)
+	if _, _, errSc := SendCmd(cmd); errSc != nil {
+		return errSc
 	}
 	return nil
 }
@@ -454,7 +470,7 @@ func Start() error {
 		if strings.Contains(line, "[file] Opening ") {
 			lineSplit := strings.Split(line, "/")
 			title = strings.TrimSpace(lineSplit[len(lineSplit)-1])
-		} else if match := regexTitle.Find([]byte(line)); len(match) > 0 {
+		} else if match := regexTitle.MatchString(line); match {
 			title = strings.Trim(strings.TrimRight(regexTitle.ReplaceAllString(line, ""), " -> 1"), `"`)
 		} else {
 			continue

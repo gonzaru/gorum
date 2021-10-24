@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
+	"strconv"
 )
 
 // local packages
@@ -46,6 +48,26 @@ func main() {
 		if err := gorum.Toggle(arg); err != nil {
 			utils.ErrPrint(err)
 			log.Fatal(err)
+		}
+	case "seek":
+		if len(args) != 2 {
+			gorum.Help()
+			os.Exit(1)
+		}
+		secondsStr := args[1]
+		regexSeek := regexp.MustCompile(`^[+-]\d+$`)
+		if match := regexSeek.MatchString(secondsStr); !match {
+			gorum.Help()
+			os.Exit(1)
+		}
+		secondsInt, errSa := strconv.Atoi(secondsStr)
+		if errSa != nil {
+			utils.ErrPrint(errSa)
+			log.Fatal(errSa)
+		}
+		if errSe := gorum.Seek(secondsInt); errSe != nil {
+			utils.ErrPrint(errSe)
+			log.Fatal(errSe)
 		}
 	case "start":
 		go gorum.SignalHandler()

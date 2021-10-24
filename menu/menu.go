@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -48,19 +49,20 @@ func finishMenu() error {
 func helpMenu() string {
 	var help strings.Builder
 	help.WriteString("help\n")
-	help.WriteString("clear     # clear the terminal screen\n")
-	help.WriteString("exit      # exits the menu\n")
-	help.WriteString("sf        # launches sf selector file [.]\n")
-	help.WriteString("number    # plays the selected media stream\n")
-	help.WriteString("url       # plays the stream url\n")
-	help.WriteString("start     # starts " + config.ProgName + "\n")
-	help.WriteString("stop      # stops " + config.ProgName + "\n")
-	help.WriteString("stopplay  # stops playing the current media [stopp]\n")
-	help.WriteString("status    # prints status information\n")
-	help.WriteString("mute      # toggles between mute and unmute\n")
-	help.WriteString("pause     # toggles between pause and unpause\n")
-	help.WriteString("video     # toggles between video auto and off\n")
-	help.WriteString("help      # shows help menu information [?]\n")
+	help.WriteString("clear       # clear the terminal screen\n")
+	help.WriteString("exit        # exits the menu\n")
+	help.WriteString("sf          # launches sf selector file [.]\n")
+	help.WriteString("number      # plays the selected media stream\n")
+	help.WriteString("url         # plays the stream url\n")
+	help.WriteString("start       # starts " + config.ProgName + "\n")
+	help.WriteString("stop        # stops " + config.ProgName + "\n")
+	help.WriteString("stopplay    # stops playing the current media [stopp]\n")
+	help.WriteString("status      # prints status information\n")
+	help.WriteString("seek +n/-n  # seeks forward (+n) or backward (-n) number in seconds\n")
+	help.WriteString("mute        # toggles between mute and unmute\n")
+	help.WriteString("pause       # toggles between pause and unpause\n")
+	help.WriteString("video       # toggles between video auto and off\n")
+	help.WriteString("help        # shows help menu information [?]\n")
 	return help.String()
 }
 
@@ -211,8 +213,30 @@ func Menu() error {
 			}
 		default:
 			var errSa error
+			var secondsInt int
 			curStream = ""
 			statusMsg = ""
+			regexSeek := regexp.MustCompile(`^seek\s[+-]\d+$`)
+			if len(strings.Split(streamStr, " ")) == 2 && regexSeek.MatchString(streamStr) {
+				secondsInt, errSa = strconv.Atoi(strings.Split(streamStr, " ")[1])
+				if errSa != nil {
+					statusMsg = errSa.Error()
+					continue
+				}
+				if errSe := gorum.Seek(secondsInt); errSe != nil {
+					statusMsg = errSe.Error()
+					continue
+				}
+				cmd := `{"command": ["get_property_string", "playback-time"]}`
+				_, content, errSc := gorum.SendCmd(cmd)
+				if errSc != nil {
+					log.Print(errSc)
+					statusMsg = errSc.Error()
+					continue
+				}
+				statusMsg = fmt.Sprintf("%s: %s", "time", content["data"])
+				continue
+			}
 			streamId, errSa = strconv.Atoi(streamStr)
 			if _, ok := streams[streamId]; (!ok || errSa != nil) && !utils.ValidUrl(streamStr) {
 				numOptErrors++
