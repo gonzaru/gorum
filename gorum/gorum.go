@@ -150,6 +150,16 @@ func IsRunning() bool {
 	return false
 }
 
+// isSeekable checks if it's possible to seek the current file
+func isSeekable() bool {
+	status := false
+	cmd := `{"command": ["get_property_string", "seekable"]}`
+	if _, content, errSc := SendCmd(cmd); errSc == nil && content["data"] == "yes" {
+		status = true
+	}
+	return status
+}
+
 // Play plays media files
 func Play(file string) error {
 	if !IsRunning() {
@@ -272,6 +282,9 @@ func Seek(seconds int) error {
 	}
 	if isIdle() {
 		return fmt.Errorf("seek: error: '%s' is idle\n", config.ProgName)
+	}
+	if !isSeekable() {
+		return fmt.Errorf("seek: error: the current file is not seekable\n")
 	}
 	cmd := fmt.Sprintf(`{"command": ["seek", "%d"]}`, seconds)
 	if _, _, errSc := SendCmd(cmd); errSc != nil {
@@ -536,6 +549,7 @@ func StatusCmd(cmd string, field string, maxTries int) (map[string]interface{}, 
 
 // statusPlayer prints media player status information
 func statusPlayer() (string, error) {
+	var statusInfo strings.Builder
 	cmd := `{"command": ["get_property", "metadata"]}`
 	dataJson, _, errSc := SendCmd(cmd)
 	if errSc != nil {
@@ -546,30 +560,43 @@ func statusPlayer() (string, error) {
 		return "", errJp
 	}
 	cmds := []string{
-		`{"command": ["get_property_string", "mute"], "async": true}`,
-		`{"command": ["get_property_string", "pause"], "async": true}`,
-		`{"command": ["get_property_string", "video"], "async": true}`,
-		`{"command": ["get_property_string", "idle-active"], "async": true}`,
-		`{"command": ["get_property_string", "media-title"], "async": true}`,
-		`{"command": ["get_property_string", "path"], "async": true}`,
-		`{"command": ["get_property_string", "file-format"], "async": true}`,
+		`{"command": ["get_property_string", "mute"]}`,
+		`{"command": ["get_property_string", "pause"]}`,
+		`{"command": ["get_property_string", "video"]}`,
+		`{"command": ["get_property_string", "idle-active"]}`,
+		`{"command": ["get_property_string", "seekable"]}`,
+		`{"command": ["get_property_string", "media-title"]}`,
+		`{"command": ["get_property_string", "path"]}`,
+		`{"command": ["get_property_string", "file-format"]}`,
+		`{"command": ["get_property_string", "duration"]}`,
+		`{"command": ["get_property_string", "time-pos"]}`,
+		`{"command": ["get_property_string", "time-remaining"]}`,
+		`{"command": ["get_property_string", "percent-pos"]}`,
+		`{"command": ["get_property_string", "ao-volume"]}`,
+		`{"command": ["get_property_string", "eof-reached"]}`,
 	}
-	arrSc, errSm := sendCmds(cmds, true)
+	arrSc, errSm := sendCmds(cmds, false)
 	if errSm != nil {
 		return "", errSm
 	}
-	statusInfo := fmt.Sprintf(
-		"mute:  %s\npause: %s\nvideo: %s\nidle:  %s\nsong:  %v\npath:  %v\nffmt:  %v\nmeta:\n%s\n",
-		arrSc[0][1].(map[string]interface{})["data"],
-		arrSc[1][1].(map[string]interface{})["data"],
-		arrSc[2][1].(map[string]interface{})["data"],
-		arrSc[3][1].(map[string]interface{})["data"],
-		arrSc[4][1].(map[string]interface{})["data"],
-		arrSc[5][1].(map[string]interface{})["data"],
-		arrSc[6][1].(map[string]interface{})["data"],
-		outPretty,
-	)
-	return statusInfo, nil
+	statusInfo.WriteString(fmt.Sprintf("mute:  %s\n", arrSc[0][1].(map[string]interface{})["data"]))
+	statusInfo.WriteString(fmt.Sprintf("pause: %s\n", arrSc[1][1].(map[string]interface{})["data"]))
+	statusInfo.WriteString(fmt.Sprintf("video: %s\n", arrSc[2][1].(map[string]interface{})["data"]))
+	statusInfo.WriteString(fmt.Sprintf("idle:  %s\n", arrSc[3][1].(map[string]interface{})["data"]))
+	statusInfo.WriteString(fmt.Sprintf("seek:  %v\n", arrSc[4][1].(map[string]interface{})["data"]))
+	statusInfo.WriteString(fmt.Sprintf("song:  %v\n", arrSc[5][1].(map[string]interface{})["data"]))
+	statusInfo.WriteString(fmt.Sprintf("file:  %v\n", arrSc[6][1].(map[string]interface{})["data"]))
+	statusInfo.WriteString(fmt.Sprintf("ffmt:  %v\n", arrSc[7][1].(map[string]interface{})["data"]))
+	if isSeekable() {
+		statusInfo.WriteString(fmt.Sprintf("time:  duration:  %v\n", arrSc[8][1].(map[string]interface{})["data"]))
+		statusInfo.WriteString(fmt.Sprintf("time:  position:  %v\n", arrSc[9][1].(map[string]interface{})["data"]))
+		statusInfo.WriteString(fmt.Sprintf("time:  remaining: %v\n", arrSc[10][1].(map[string]interface{})["data"]))
+		statusInfo.WriteString(fmt.Sprintf("time:  percent:   %s\n", arrSc[11][1].(map[string]interface{})["data"]))
+	}
+	statusInfo.WriteString(fmt.Sprintf("vol%%:  %v\n", arrSc[12][1].(map[string]interface{})["data"]))
+	statusInfo.WriteString(fmt.Sprintf("eof:   %v\n", arrSc[13][1].(map[string]interface{})["data"]))
+	statusInfo.WriteString(fmt.Sprintf("meta:\n%s\n", outPretty))
+	return statusInfo.String(), nil
 }
 
 // StreamPath returns the active stream path

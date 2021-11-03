@@ -18,6 +18,7 @@ var (
 	PidFile    = fmt.Sprintf("%s/%s-gorum.pid", tmpDir, userName)
 	Player     = "mpv"
 	PlayerArgs = []string{
+		"--no-config",
 		"--msg-level=all=v",
 		"--network-timeout=10",
 		"--cache=no",
