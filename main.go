@@ -92,6 +92,21 @@ func main() {
 			utils.ErrPrint(err)
 			log.Fatal(err)
 		}
+	case "vol", "volume":
+		if len(args) != 2 {
+			gorum.Help()
+			os.Exit(1)
+		}
+		numStr := args[1]
+		numInt, errSa := strconv.Atoi(numStr)
+		if errSa != nil {
+			utils.ErrPrint(errSa)
+			log.Fatal(errSa)
+		}
+		if errVo := gorum.Volume(numInt); errVo != nil {
+			utils.ErrPrint(errVo)
+			log.Fatal(errVo)
+		}
 	default:
 		if err := gorum.Play(arg); err != nil {
 			utils.ErrPrint(err)

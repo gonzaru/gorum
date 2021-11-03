@@ -48,20 +48,24 @@ func finishMenu() error {
 // helpMenu shows help menu information
 func helpMenu() string {
 	var help strings.Builder
+	progName := config.ProgName
+	minVolStr := strconv.Itoa(config.VolumeMin)
+	maxVolStr := strconv.Itoa(config.VolumeMax)
 	help.WriteString("help\n")
 	help.WriteString("clear       # clear the terminal screen\n")
 	help.WriteString("exit        # exits the menu\n")
 	help.WriteString("sf          # launches sf selector file [.]\n")
 	help.WriteString("number      # plays the selected media stream\n")
 	help.WriteString("url         # plays the stream url\n")
-	help.WriteString("start       # starts " + config.ProgName + "\n")
-	help.WriteString("stop        # stops " + config.ProgName + "\n")
+	help.WriteString("start       # starts " + progName + "\n")
+	help.WriteString("stop        # stops " + progName + "\n")
 	help.WriteString("stopplay    # stops playing the current media [stopp]\n")
 	help.WriteString("status      # prints status information\n")
 	help.WriteString("seek +n/-n  # seeks forward (+n) or backward (-n) number in seconds\n")
 	help.WriteString("mute        # toggles between mute and unmute\n")
 	help.WriteString("pause       # toggles between pause and unpause\n")
 	help.WriteString("video       # toggles between video auto and off\n")
+	help.WriteString("volume n    # sets volume number between (" + minVolStr + "-" + maxVolStr + ") [vol]\n")
 	help.WriteString("help        # shows help menu information [?]\n")
 	return help.String()
 }
@@ -107,8 +111,8 @@ func Menu() error {
 		numOptErrors int
 		streamId     int
 		selCur       string
-		statusMsg    string
-		streamStr    string
+		statusMsg string
+		optionStr string
 	)
 	streams := config.Streams
 	keys := make([]int, 0, len(config.Streams))
@@ -145,8 +149,44 @@ func Menu() error {
 		fmt.Printf("\n# %s\n> ", strings.TrimRight(statusMsg, "\n"))
 		scanner := bufio.NewScanner(os.Stdin)
 		scanner.Scan()
-		streamStr = strings.TrimSpace(scanner.Text())
-		switch streamStr {
+		optionStr = strings.TrimSpace(scanner.Text())
+		// options with arguments
+		regexSeek := regexp.MustCompile(`^seek\s[+-]\d+$`)
+		regexVolume := regexp.MustCompile(`^volume\s[-]?\d+$`)
+		switch {
+		case regexSeek.MatchString(optionStr):
+			secondsInt, errSa := strconv.Atoi(strings.Split(optionStr, " ")[1])
+			if errSa != nil {
+				statusMsg = errSa.Error()
+				continue
+			}
+			if errSe := gorum.Seek(secondsInt); errSe != nil {
+				statusMsg = errSe.Error()
+				continue
+			}
+			cmd := `{"command": ["get_property_string", "playback-time"]}`
+			_, content, errSc := gorum.SendCmd(cmd)
+			if errSc != nil {
+				statusMsg = errSc.Error()
+				continue
+			}
+			statusMsg = fmt.Sprintf("%s: %s", "time", content["data"])
+			continue
+		case regexVolume.MatchString(optionStr):
+			numInt, errSa := strconv.Atoi(strings.Split(optionStr, " ")[1])
+			if errSa != nil {
+				statusMsg = errSa.Error()
+				continue
+			}
+			if errSe := gorum.Volume(numInt); errSe != nil {
+				statusMsg = errSe.Error()
+				continue
+			}
+			statusMsg = fmt.Sprintf("%s: %d", "volume", numInt)
+			continue
+		}
+		// options without arguments
+		switch optionStr {
 		case ".", "sf":
 			if errMe := sf.Run(); errMe != nil {
 				statusMsg = errMe.Error()
@@ -158,20 +198,19 @@ func Menu() error {
 		case "exit":
 			return nil
 		case "mute", "pause", "video":
-			if errTo := gorum.Toggle(streamStr); errTo != nil {
+			if errTo := gorum.Toggle(optionStr); errTo != nil {
 				statusMsg = errTo.Error()
 				continue
 			}
-			cmd := fmt.Sprintf(`{"command": ["get_property_string", "%s"]}`, streamStr)
+			cmd := fmt.Sprintf(`{"command": ["get_property_string", "%s"]}`, optionStr)
 			_, content, errSc := gorum.SendCmd(cmd)
 			if errSc != nil {
-				log.Print(errSc)
 				statusMsg = errSc.Error()
 				continue
 			}
-			statusMsg = fmt.Sprintf("%s: %s", streamStr, content["data"])
+			statusMsg = fmt.Sprintf("%s: %s", optionStr, content["data"])
 		case "number", "url":
-			statusMsg = fmt.Sprintf("info: simply put the stream %s and press ENTER", streamStr)
+			statusMsg = fmt.Sprintf("info: simply put the stream %s and press ENTER", optionStr)
 		case "start":
 			statusMsg = ""
 			if gorum.IsRunning() {
@@ -213,32 +252,10 @@ func Menu() error {
 			}
 		default:
 			var errSa error
-			var secondsInt int
 			curStream = ""
 			statusMsg = ""
-			regexSeek := regexp.MustCompile(`^seek\s[+-]\d+$`)
-			if len(strings.Split(streamStr, " ")) == 2 && regexSeek.MatchString(streamStr) {
-				secondsInt, errSa = strconv.Atoi(strings.Split(streamStr, " ")[1])
-				if errSa != nil {
-					statusMsg = errSa.Error()
-					continue
-				}
-				if errSe := gorum.Seek(secondsInt); errSe != nil {
-					statusMsg = errSe.Error()
-					continue
-				}
-				cmd := `{"command": ["get_property_string", "playback-time"]}`
-				_, content, errSc := gorum.SendCmd(cmd)
-				if errSc != nil {
-					log.Print(errSc)
-					statusMsg = errSc.Error()
-					continue
-				}
-				statusMsg = fmt.Sprintf("%s: %s", "time", content["data"])
-				continue
-			}
-			streamId, errSa = strconv.Atoi(streamStr)
-			if _, ok := streams[streamId]; (!ok || errSa != nil) && !utils.ValidUrl(streamStr) {
+			streamId, errSa = strconv.Atoi(optionStr)
+			if _, ok := streams[streamId]; (!ok || errSa != nil) && !utils.ValidUrl(optionStr) {
 				numOptErrors++
 				if numOptErrors >= maxOptErrors {
 					return errors.New("menu: error: too many consecutive errors\n")
@@ -247,23 +264,20 @@ func Menu() error {
 				continue
 			}
 			numOptErrors = 0
-			if errPl := gorum.Play(streamStr); errPl != nil {
-				log.Print(errPl)
+			if errPl := gorum.Play(optionStr); errPl != nil {
 				statusMsg = errPl.Error()
 				continue
 			}
 			cmd := `{"command": ["get_property", "filtered-metadata"]}`
 			if _, errSc := gorum.StatusCmd(cmd, "error", 5); errSc != nil {
-				log.Print(errSc)
 				statusMsg = errSc.Error()
-				fmt.Println(statusMsg)
 				continue
 			}
 			if _, ok := streams[streamId]; ok {
 				statusMsg = streams[streamId]["name"]
 			} else {
 				for key := range streams {
-					if streamStr == streams[key]["url"] {
+					if optionStr == streams[key]["url"] {
 						statusMsg = streams[key]["name"]
 						streamId = key
 						break
@@ -271,7 +285,7 @@ func Menu() error {
 				}
 			}
 			if statusMsg == "" {
-				statusMsg = streamStr
+				statusMsg = optionStr
 			}
 		}
 	}

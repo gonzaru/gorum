@@ -109,20 +109,24 @@ func finish() error {
 
 // Help shows help information
 func Help() {
+	progName := config.ProgName
+	minVol := config.VolumeMin
+	maxVol := config.VolumeMax
 	fmt.Print("Usage:\n")
-	fmt.Printf("  %s number         # number key id from config.Streams\n", config.ProgName)
-	fmt.Printf("  %s url            # plays the stream url\n", config.ProgName)
-	fmt.Printf("  %s /path/to/file  # plays the local file\n", config.ProgName)
-	fmt.Printf("  %s start          # starts %s\n", config.ProgName, config.ProgName)
-	fmt.Printf("  %s stop           # stops %s\n", config.ProgName, config.ProgName)
-	fmt.Printf("  %s stopplay       # stops playing the current media file [stopp]\n", config.ProgName)
-	fmt.Printf("  %s status         # prints status information\n", config.ProgName)
-	fmt.Printf("  %s seek +n/-n     # seeks forward (+n) or backward (-n) number in seconds\n", config.ProgName)
-	fmt.Printf("  %s mute           # toggles between mute and unmute\n", config.ProgName)
-	fmt.Printf("  %s pause          # toggles between pause and unpause\n", config.ProgName)
-	fmt.Printf("  %s video          # toggles between video auto and off\n", config.ProgName)
-	fmt.Printf("  %s menu           # opens an interactive menu\n", config.ProgName)
-	fmt.Printf("  %s help           # shows help menu information\n", config.ProgName)
+	fmt.Printf("  %s number         # number key id from config.Streams\n", progName)
+	fmt.Printf("  %s url            # plays the stream url\n", progName)
+	fmt.Printf("  %s /path/to/file  # plays the local file\n", progName)
+	fmt.Printf("  %s start          # starts %s\n", progName, progName)
+	fmt.Printf("  %s stop           # stops %s\n", progName, progName)
+	fmt.Printf("  %s stopplay       # stops playing the current media file [stopp]\n", progName)
+	fmt.Printf("  %s status         # prints status information\n", progName)
+	fmt.Printf("  %s seek +n/-n     # seeks forward (+n) or backward (-n) number in seconds\n", progName)
+	fmt.Printf("  %s mute           # toggles between mute and unmute\n", progName)
+	fmt.Printf("  %s pause          # toggles between pause and unpause\n", progName)
+	fmt.Printf("  %s video          # toggles between video auto and off\n", progName)
+	fmt.Printf("  %s volume n       # sets volume number between (%d-%d) [vol]\n", progName, minVol, maxVol)
+	fmt.Printf("  %s menu           # opens an interactive menu\n", progName)
+	fmt.Printf("  %s help           # shows help menu information\n", progName)
 }
 
 // isIdle checks if no file is loaded
@@ -542,15 +546,15 @@ func statusPlayer() (string, error) {
 		return "", errJp
 	}
 	cmds := []string{
-		`{"command": ["get_property_string", "mute"]}`,
-		`{"command": ["get_property_string", "pause"]}`,
-		`{"command": ["get_property_string", "video"]}`,
-		`{"command": ["get_property_string", "idle-active"]}`,
-		`{"command": ["get_property_string", "media-title"]}`,
-		`{"command": ["get_property_string", "path"]}`,
-		`{"command": ["get_property_string", "file-format"]}`,
+		`{"command": ["get_property_string", "mute"], "async": true}`,
+		`{"command": ["get_property_string", "pause"], "async": true}`,
+		`{"command": ["get_property_string", "video"], "async": true}`,
+		`{"command": ["get_property_string", "idle-active"], "async": true}`,
+		`{"command": ["get_property_string", "media-title"], "async": true}`,
+		`{"command": ["get_property_string", "path"], "async": true}`,
+		`{"command": ["get_property_string", "file-format"], "async": true}`,
 	}
-	arrSc, errSm := sendCmds(cmds, false)
+	arrSc, errSm := sendCmds(cmds, true)
 	if errSm != nil {
 		return "", errSm
 	}
@@ -662,6 +666,47 @@ func toggleVideo() error {
 	return nil
 }
 
+// Volume sets volume
+func Volume(num int) error {
+	minNum := config.VolumeMin
+	maxNum := config.VolumeMax
+	absNum := config.VolumeAbsolute
+	if !IsRunning() {
+		return fmt.Errorf("volume: error: '%s' is not running\n", config.ProgName)
+	}
+	if num < minNum {
+		return fmt.Errorf("volume: error: number '%d' cannot lower than %d\n", num, minNum)
+	}
+	if num > maxNum {
+		return fmt.Errorf("volume: error: number '%d' cannot be greater than %d\n", num, maxNum)
+	}
+	if errVa := volumeAbsolute(absNum); errVa != nil {
+		return errVa
+	}
+	if errVs := volumeSystem(num); errVs != nil {
+		return errVs
+	}
+	return nil
+}
+
+// volumeAbsolute sets absolute volume (0 means silence, 100 means no reduction)
+func volumeAbsolute(num int) error {
+	cmd := fmt.Sprintf(`{"command": ["set_property", "volume", "%d"]}`, num)
+	if _, _, errSc := SendCmd(cmd); errSc != nil {
+		return errSc
+	}
+	return nil
+}
+
+// volumeSystem sets system volume (OSS, ALSA, PulseAudio, etc)
+func volumeSystem(num int) error {
+	cmd := fmt.Sprintf(`{"command": ["set_property", "ao-volume", "%d"]}`, num)
+	if _, _, errSc := SendCmd(cmd); errSc != nil {
+		return errSc
+	}
+	return nil
+}
+
 // wmBarUpdate updates window manager status bar
 func wmBarUpdate() error {
 	if config.WmDoBarUpdate {
@@ -677,12 +722,11 @@ func wmBarUpdate() error {
 
 // wmFileUpdate updates window manager song title file
 func wmFileUpdate(file string, data []byte, fi os.FileMode) error {
-	var err error = nil
 	if errWf := ioutil.WriteFile(file, data, fi); errWf != nil {
-		err = errWf
+		return errWf
 	}
 	if errWb := wmBarUpdate(); errWb != nil {
-		err = errWb
+		return errWb
 	}
-	return err
+	return nil
 }

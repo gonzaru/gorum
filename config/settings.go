@@ -30,6 +30,9 @@ var (
 	PlayerControlFile = fmt.Sprintf("%s/%s-gorum-player-control.socket", tmpDir, userName)
 	PlayerPidFile     = fmt.Sprintf("%s/%s-gorum-player.pid", tmpDir, userName)
 	GorumLog          = fmt.Sprintf("%s/%s-gorum.log", tmpDir, userName)
+	VolumeMin         = 0
+	VolumeMax         = 100
+	VolumeAbsolute    = 100
 	WmDoBarUpdate     = wmCheckBarUpdate("wmbarupdate")
 	WmFile            = fmt.Sprintf("%s/%s-gorum-wm.txt", tmpDir, userName)
 	WmFilePerms       = os.FileMode(0600)
@@ -37,7 +40,7 @@ var (
 	userName          = getUserName()
 )
 
-// getUserName returns the current user
+// getUserName returns the current user name
 func getUserName() string {
 	usc, err := user.Current()
 	if err != nil {
