@@ -33,7 +33,7 @@ import (
 // checkOS checks if current operating system has been tested
 func checkOS() bool {
 	status := false
-	items := []string{"freebsd", "linux", "netbsd", "openbsd"}
+	items := []string{"darwin", "freebsd", "linux", "netbsd", "openbsd"}
 	for _, item := range items {
 		if item == runtime.GOOS {
 			status = true
@@ -83,17 +83,17 @@ func cleanUp() error {
 }
 
 // controlFileExists checks if controlFile exists and is in socket mode
-func controlFileExists(file string) (bool, error) {
+func controlFileExists(file string) error {
 	fi, err := os.Stat(config.PlayerControlFile)
 	if os.IsNotExist(err) {
-		return false, fmt.Errorf("controlFileExists: error: '%s' no such file or directory\n", file)
+		return fmt.Errorf("controlFileExists: error: '%s' no such file or directory\n", file)
 	} else if err != nil {
-		return false, err
+		return err
 	}
 	if fi.Mode()&os.ModeSocket == 0 {
-		return false, fmt.Errorf("controlFileExists: error: '%s' is not a socket file\n", file)
+		return fmt.Errorf("controlFileExists: error: '%s' is not a socket file\n", file)
 	}
-	return true, nil
+	return nil
 }
 
 // finish performs actions before leaving the program
@@ -302,7 +302,7 @@ func SendCmd(cmd string) ([]byte, map[string]interface{}, error) {
 	if !json.Valid([]byte(cmd)) {
 		return nil, nil, fmt.Errorf("sendCmd: error: invalid json %s\n", cmd)
 	}
-	if status, errCf := controlFileExists(config.PlayerControlFile); !status || errCf != nil {
+	if errCf := controlFileExists(config.PlayerControlFile); errCf != nil {
 		return nil, nil, errCf
 	}
 	conn, errNd := net.Dial("unix", config.PlayerControlFile)

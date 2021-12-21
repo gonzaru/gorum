@@ -35,12 +35,12 @@ func finishMenu() error {
 		fileFlag = "-F"
 	}
 	if errEc := exec.Command("stty", fileFlag, "/dev/tty", "echo").Run(); errEc != nil {
-		log.Fatal(errEc)
+		return errEc
 	}
 	cmdSs := exec.Command("stty", "sane")
 	cmdSs.Stdin = os.Stdin
 	if errCr := cmdSs.Run(); errCr != nil {
-		log.Fatal(errCr)
+		return errCr
 	}
 	return nil
 }
@@ -111,8 +111,8 @@ func Menu() error {
 		numOptErrors int
 		streamId     int
 		selCur       string
-		statusMsg string
-		optionStr string
+		statusMsg    string
+		optionStr    string
 	)
 	streams := config.Streams
 	keys := make([]int, 0, len(config.Streams))
