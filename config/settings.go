@@ -31,6 +31,8 @@ var (
 	PlayerControlFile = fmt.Sprintf("%s/%s-gorum-player-control.socket", tmpDir, userName)
 	PlayerPidFile     = fmt.Sprintf("%s/%s-gorum-player.pid", tmpDir, userName)
 	GorumLog          = fmt.Sprintf("%s/%s-gorum.log", tmpDir, userName)
+	MinStatusTries    = 1
+	MaxStatusTries    = 10
 	VolumeMin         = 0
 	VolumeMax         = 100
 	VolumeAbsolute    = 100

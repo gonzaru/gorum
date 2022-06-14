@@ -121,6 +121,7 @@ func Help() {
 	fmt.Printf("  %s stopplay       # stops playing the current media file [stopp]\n", progName)
 	fmt.Printf("  %s status         # prints status information\n", progName)
 	fmt.Printf("  %s seek +n/-n     # seeks forward (+n) or backward (-n) number in seconds\n", progName)
+	fmt.Printf("  %s title          # prints media title\n", progName)
 	fmt.Printf("  %s mute           # toggles between mute and unmute\n", progName)
 	fmt.Printf("  %s pause          # toggles between pause and unpause\n", progName)
 	fmt.Printf("  %s video          # toggles between video auto and off\n", progName)
@@ -584,7 +585,7 @@ func statusPlayer() (string, error) {
 	statusInfo.WriteString(fmt.Sprintf("video: %s\n", arrSc[2][1].(map[string]interface{})["data"]))
 	statusInfo.WriteString(fmt.Sprintf("idle:  %s\n", arrSc[3][1].(map[string]interface{})["data"]))
 	statusInfo.WriteString(fmt.Sprintf("seek:  %v\n", arrSc[4][1].(map[string]interface{})["data"]))
-	statusInfo.WriteString(fmt.Sprintf("song:  %v\n", arrSc[5][1].(map[string]interface{})["data"]))
+	statusInfo.WriteString(fmt.Sprintf("title: %v\n", arrSc[5][1].(map[string]interface{})["data"]))
 	statusInfo.WriteString(fmt.Sprintf("file:  %v\n", arrSc[6][1].(map[string]interface{})["data"]))
 	statusInfo.WriteString(fmt.Sprintf("ffmt:  %v\n", arrSc[7][1].(map[string]interface{})["data"]))
 	if isSeekable() {
@@ -652,6 +653,19 @@ func stopPlayer() error {
 		return errSk
 	}
 	return nil
+}
+
+// Title prints media title
+func Title() (string, error) {
+	if !IsRunning() {
+		return "", fmt.Errorf("title: error: '%s' is not running\n", config.ProgName)
+	}
+	cmd := fmt.Sprintf(`{"command": ["get_property_string", "%s"]}`, "media-title")
+	_, content, errSc := SendCmd(cmd)
+	if errSc != nil {
+		return "", errSc
+	}
+	return fmt.Sprintf("%v", content["data"]), nil
 }
 
 // Toggle toggles property option
@@ -736,7 +750,7 @@ func volumeSystem(num int) error {
 
 // wmBarUpdate updates window manager status bar
 func wmBarUpdate() error {
-	if config.WmDoBarUpdate {
+	if config.WmDoBarUpdate && os.Getenv("DISPLAY") != "" {
 		if _, errLp := exec.LookPath("wmbarupdate"); errLp == nil {
 			cmd := exec.Command("wmbarupdate")
 			if errCr := cmd.Run(); errCr != nil {
@@ -747,7 +761,7 @@ func wmBarUpdate() error {
 	return nil
 }
 
-// wmFileUpdate updates window manager song title file
+// wmFileUpdate updates window manager media title file
 func wmFileUpdate(file string, data []byte, fi os.FileMode) error {
 	if errWf := ioutil.WriteFile(file, data, fi); errWf != nil {
 		return errWf

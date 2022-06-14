@@ -57,7 +57,7 @@ func helpSF() string {
 	help.WriteString("K       # goes to top line\n")
 	help.WriteString("r       # redraws terminal screen\n")
 	help.WriteString("Enter   # selects the file or directory\n")
-	help.WriteString("Escape  # exits sf\n")
+	help.WriteString("Escape  # exits sf [q]\n")
 	help.WriteString("?       # shows sf' help information\n")
 	return help.String()
 }
@@ -303,7 +303,7 @@ func Run() error {
 				keyLoop = false
 			case ".":
 				keyLoop = false
-			case "escape":
+			case "escape", "q":
 				return nil
 			case "enter", "return":
 				if len(sf.files) == 0 || len(sf.files) <= (sf.curPos+sf.startOffset)-(sf.linesHeader+1) {
@@ -337,7 +337,7 @@ func Run() error {
 						return errPl
 					}
 					cmd := `{"command": ["get_property", "filtered-metadata"]}`
-					if _, errSc := gorum.StatusCmd(cmd, "error", 1); errSc != nil {
+					if _, errSc := gorum.StatusCmd(cmd, "error", config.MinStatusTries); errSc != nil {
 						log.Print(errSc)
 						cursor.Move((sf.linesHeader+sf.linesBody+sf.linesFooter)-1, 1)
 						cursor.ClearCurLine()

@@ -62,6 +62,7 @@ func helpMenu() string {
 	help.WriteString("stopplay    # stops playing the current media [stopp]\n")
 	help.WriteString("status      # prints status information\n")
 	help.WriteString("seek +n/-n  # seeks forward (+n) or backward (-n) number in seconds\n")
+	help.WriteString("title       # prints media title\n")
 	help.WriteString("mute        # toggles between mute and unmute\n")
 	help.WriteString("pause       # toggles between pause and unpause\n")
 	help.WriteString("video       # toggles between video auto and off\n")
@@ -250,6 +251,13 @@ func Menu() error {
 			if err := gorum.PlayStop(); err != nil {
 				statusMsg = err.Error()
 			}
+		case "title":
+			content, err := gorum.Title()
+			if err != nil {
+				statusMsg = err.Error()
+				continue
+			}
+			statusMsg = fmt.Sprintf("%s: %s", optionStr, content)
 		default:
 			var errSa error
 			curStream = ""
@@ -269,7 +277,7 @@ func Menu() error {
 				continue
 			}
 			cmd := `{"command": ["get_property", "filtered-metadata"]}`
-			if _, errSc := gorum.StatusCmd(cmd, "error", 5); errSc != nil {
+			if _, errSc := gorum.StatusCmd(cmd, "error", config.MaxStatusTries); errSc != nil {
 				statusMsg = errSc.Error()
 				continue
 			}

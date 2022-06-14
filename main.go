@@ -13,6 +13,7 @@ import (
 
 // local packages
 import (
+	"github.com/gonzaru/gorum/config"
 	"github.com/gonzaru/gorum/gorum"
 	"github.com/gonzaru/gorum/menu"
 	"github.com/gonzaru/gorum/utils"
@@ -92,6 +93,13 @@ func main() {
 			utils.ErrPrint(err)
 			log.Fatal(err)
 		}
+	case "title":
+		content, err := gorum.Title()
+		if err != nil {
+			utils.ErrPrint(err)
+			log.Fatal(err)
+		}
+		fmt.Printf("title: %s\n", content)
 	case "vol", "volume":
 		if len(args) != 2 {
 			gorum.Help()
@@ -113,7 +121,7 @@ func main() {
 			log.Fatal(err)
 		}
 		cmd := `{"command": ["get_property", "filtered-metadata"]}`
-		if _, errSc := gorum.StatusCmd(cmd, "error", 5); errSc != nil {
+		if _, errSc := gorum.StatusCmd(cmd, "error", config.MaxStatusTries); errSc != nil {
 			utils.ErrPrint(errSc)
 			log.Fatal(errSc)
 		}
