@@ -11,11 +11,12 @@ import (
 	"os/user"
 )
 
+// ProgName the name of the program
 const ProgName = "gorum"
 
 var (
-	LockDir    = fmt.Sprintf("%s/%s-gorum.lock", tmpDir, userName)
-	PidFile    = fmt.Sprintf("%s/%s-gorum.pid", tmpDir, userName)
+	LockDir    = fmt.Sprintf("%s/%s-%s.lock", tmpDir, userName, ProgName)
+	PidFile    = fmt.Sprintf("%s/%s-%s.pid", tmpDir, userName, ProgName)
 	Player     = "mpv"
 	PlayerArgs = []string{
 		"--no-config",
@@ -28,16 +29,17 @@ var (
 		"--idle=yes",
 		"--input-ipc-server=" + PlayerControlFile,
 	}
-	PlayerControlFile = fmt.Sprintf("%s/%s-gorum-player-control.socket", tmpDir, userName)
-	PlayerPidFile     = fmt.Sprintf("%s/%s-gorum-player.pid", tmpDir, userName)
-	GorumLog          = fmt.Sprintf("%s/%s-gorum.log", tmpDir, userName)
+	PlayerControlFile = fmt.Sprintf("%s/%s-%s-player-control.socket", tmpDir, userName, ProgName)
+	PlayerPidFile     = fmt.Sprintf("%s/%s-%s-player.pid", tmpDir, userName, ProgName)
+	Log               = fmt.Sprintf("%s/%s-%s.log", tmpDir, userName, ProgName)
+	MaxMenuTries      = 5
 	MinStatusTries    = 1
 	MaxStatusTries    = 10
 	VolumeMin         = 0
 	VolumeMax         = 100
 	VolumeAbsolute    = 100
 	WmDoBarUpdate     = wmCheckBarUpdate("wmbarupdate")
-	WmFile            = fmt.Sprintf("%s/%s-gorum-wm.txt", tmpDir, userName)
+	WmFile            = fmt.Sprintf("%s/%s-%s-wm.txt", tmpDir, userName, ProgName)
 	WmFilePerms       = os.FileMode(0600)
 	tmpDir            = os.TempDir()
 	userName          = getUserName()

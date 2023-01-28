@@ -26,18 +26,20 @@ import (
 
 // selectFile data type
 type selectFile struct {
-	files       []fs.FileInfo
-	padStr      string
-	pwd         string
-	oldPwd      string
+	actionLoop  bool
 	curPos      int
-	linesHeader int
+	files       []fs.FileInfo
 	linesBody   int
 	linesFooter int
+	linesHeader int
+	oldPwd      string
 	padInt      int
+	padStr      string
 	page        int
 	pages       int
 	perPage     int
+	progTitle   string
+	pwd         string
 	startOffset int
 }
 
@@ -67,7 +69,7 @@ func (sf *selectFile) drawHeader() error {
 	pwdSplit := strings.Split(sf.pwd, "/")
 	parentDir := pwdSplit[len(pwdSplit)-2]
 	curDir := pwdSplit[len(pwdSplit)-1]
-	fmt.Printf("%"+sf.padStr+"s### %s ###\n", "", strings.ToUpper(config.ProgName))
+	fmt.Printf("%"+sf.padStr+"s### %s ###\n", "", strings.ToUpper(sf.progTitle))
 	fmt.Printf("%"+sf.padStr+"s?) help\n", "")
 	fmt.Printf("%"+sf.padStr+"s-) ../ [%s]\n", "", parentDir)
 	fmt.Printf("%"+sf.padStr+"s.) ./ [%s]\n", "", curDir)
@@ -108,7 +110,7 @@ func (sf *selectFile) drawFooter(pos int) error {
 	return nil
 }
 
-// nextLine
+// nextLine goes one line downward
 func (sf *selectFile) nextLine() error {
 	sf.curPos++
 	cursor.Move((sf.linesHeader+sf.linesBody+sf.linesFooter)-1, 1)
@@ -126,7 +128,7 @@ func (sf *selectFile) nextLine() error {
 	return nil
 }
 
-// prevLine
+// prevLine goes one line upward
 func (sf *selectFile) prevLine() error {
 	sf.curPos--
 	cursor.Move((sf.linesHeader+sf.linesBody+sf.linesFooter)-1, 1)
@@ -144,7 +146,7 @@ func (sf *selectFile) prevLine() error {
 	return nil
 }
 
-// nextPage
+// nextPage goes to next page
 func (sf *selectFile) nextPage() error {
 	if sf.curPos >= len(sf.files) && sf.page >= sf.pages || sf.page >= sf.pages {
 		return nil
@@ -177,7 +179,7 @@ func (sf *selectFile) nextPage() error {
 	return nil
 }
 
-// prevPage
+// prevPage goes to previous page
 func (sf *selectFile) prevPage(curTop bool) error {
 	if sf.page <= 1 {
 		return nil
@@ -207,19 +209,233 @@ func (sf *selectFile) prevPage(curTop bool) error {
 	return nil
 }
 
+// doActionEnter executes the enter sf option
+func (sf *selectFile) doActionEnter() error {
+	if len(sf.files) == 0 || len(sf.files) <= (sf.curPos+sf.startOffset)-(sf.linesHeader+1) {
+		return nil
+	}
+	curFileName := sf.files[(sf.curPos+sf.startOffset)-(sf.linesHeader+1)]
+	curFileIsDir := false
+	if curFileName.Mode()&os.ModeSymlink == os.ModeSymlink {
+		symlinkPath, errRl := os.Readlink(curFileName.Name())
+		if errRl != nil {
+			return errRl
+		}
+		fi, errOs := os.Stat(symlinkPath)
+		if os.IsNotExist(errOs) {
+			return fmt.Errorf("doActionEnter: error: '%s' no such file or directory\n", symlinkPath)
+		} else if errOs != nil {
+			return errOs
+		}
+		if fi.IsDir() {
+			curFileIsDir = true
+		}
+	}
+	if curFileName.IsDir() || curFileIsDir {
+		if errCd := os.Chdir(curFileName.Name()); errCd != nil {
+			return errCd
+		}
+		sf.oldPwd = sf.pwd
+		sf.actionLoop = false
+	} else {
+		if errPl := gorum.Play(curFileName.Name()); errPl != nil {
+			return errPl
+		}
+		cmd := `{"command": ["get_property", "filtered-metadata"]}`
+		if _, errSc := gorum.StatusCmd(cmd, "error", config.MinStatusTries); errSc != nil {
+			log.Print(errSc)
+			cursor.Move((sf.linesHeader+sf.linesBody+sf.linesFooter)-1, 1)
+			cursor.ClearCurLine()
+			utils.ErrPrintf("# %s", errSc.Error())
+			cursor.Move(sf.curPos, sf.padInt+1)
+		}
+	}
+	return nil
+}
+
+// doActionHelp executes the help sf option
+func (sf *selectFile) doActionHelp() error {
+	cursor.Move((sf.linesHeader+sf.linesBody+sf.linesFooter)-1, 1)
+	cursor.ClearCurLine()
+	fmt.Print(helpSF())
+	fmt.Print("\nPress ENTER to exit")
+	res := ""
+	if _, errSc := fmt.Scanf("%s", &res); errSc != nil && errSc.Error() != "unexpected newline" {
+		return errSc
+	}
+	cursor.Move(sf.linesHeader+1, sf.padInt+1)
+	sf.actionLoop = false
+	return nil
+}
+
+// doActionHomeDir executes the home dir sf option
+func (sf *selectFile) doActionHomeDir() error {
+	homeDir, errUh := os.UserHomeDir()
+	if errUh != nil {
+		return errUh
+	}
+	if errCd := os.Chdir(homeDir); errCd != nil {
+		return errCd
+	}
+	sf.oldPwd = sf.pwd
+	sf.actionLoop = false
+	return nil
+}
+
+// doActionDownLine executes the down line sf option
+func (sf *selectFile) doActionDownLine() error {
+	if sf.curPos < sf.linesHeader+sf.linesBody {
+		if errNl := sf.nextLine(); errNl != nil {
+			return errNl
+		}
+	} else {
+		if errNp := sf.nextPage(); errNp != nil {
+			return errNp
+		}
+	}
+	return nil
+}
+
+// doActionParentDir executes the parent dir sf option
+func (sf *selectFile) doActionParentDir() error {
+	if sf.pwd != "/" {
+		if errCd := os.Chdir(".."); errCd != nil {
+			return errCd
+		}
+		sf.oldPwd = sf.pwd
+		sf.actionLoop = false
+	}
+	return nil
+}
+
+// doActionPrevDir executes the previous dir sf option
+func (sf *selectFile) doActionPrevDir() error {
+	if sf.oldPwd != "" && sf.oldPwd != sf.pwd {
+		if errCd := os.Chdir(sf.oldPwd); errCd != nil {
+			return errCd
+		}
+		sf.oldPwd = sf.pwd
+		sf.actionLoop = false
+	}
+	return nil
+}
+
+// doActionUpLine executes the up line sf option
+func (sf *selectFile) doActionUpLine() error {
+	if sf.curPos > sf.linesHeader+1 {
+		if errPl := sf.prevLine(); errPl != nil {
+			return errPl
+		}
+	} else {
+		if errPp := sf.prevPage(false); errPp != nil {
+			return errPp
+		}
+	}
+	return nil
+}
+
+// doAction executes the selected sf option
+func (sf *selectFile) doAction(keyName string) error {
+	switch keyName {
+	case "?":
+		if err := sf.doActionHelp(); err != nil {
+			return err
+		}
+	case "_", "^", "p":
+		if err := sf.doActionPrevDir(); err != nil {
+			return err
+		}
+	case "-":
+		if err := sf.doActionParentDir(); err != nil {
+			return err
+		}
+	case "~":
+		if err := sf.doActionHomeDir(); err != nil {
+			return err
+		}
+	case ".":
+		sf.actionLoop = false
+	case "escape", "q":
+		sf.actionLoop = false
+	case "enter", "return":
+		if err := sf.doActionEnter(); err != nil {
+			return err
+		}
+	case "J", "DOWN":
+		sf.curPos = sf.linesHeader + sf.linesBody
+		cursor.Move(sf.curPos, sf.padInt+1)
+	case "K", "UP":
+		sf.curPos = sf.linesHeader + 1
+		cursor.Move(sf.curPos, sf.padInt+1)
+	case "j", "down":
+		if err := sf.doActionDownLine(); err != nil {
+			return err
+		}
+	case "k", "up":
+		if err := sf.doActionUpLine(); err != nil {
+			return err
+		}
+	case "h", "left":
+		if sf.pages > 1 {
+			if errNp := sf.prevPage(true); errNp != nil {
+				return errNp
+			}
+		}
+	case "l", "right":
+		if sf.pages > 1 {
+			sf.curPos = sf.linesHeader + sf.linesBody
+			if errNp := sf.nextPage(); errNp != nil {
+				return errNp
+			}
+		}
+	case "r":
+		sf.actionLoop = false
+	default:
+		cursor.Move((sf.linesHeader+sf.linesBody+sf.linesFooter)-1, 1)
+		cursor.ClearCurLine()
+		utils.ErrPrintf("# sf: error: keystroke '%s' is not supported, press '?' for help", keyName)
+		cursor.Move(sf.curPos, sf.padInt+1)
+	}
+	return nil
+}
+
+// runActions runs the action loop
+func (sf *selectFile) runActions() error {
+	for sf.actionLoop = true; sf.actionLoop; {
+		key, errKp := utils.KeyPress()
+		if errKp != nil {
+			return errKp
+		}
+		keyName, errKn := utils.KeyPressName(key)
+		if errKn != nil {
+			return errKn
+		}
+		if keyName == "escape" || keyName == "q" {
+			return errors.New("info: 'sf' was closed")
+		}
+		if errDa := sf.doAction(keyName); errDa != nil {
+			return errDa
+		}
+	}
+	return nil
+}
+
 // Run selects a file using keyboard interactively
 func Run() error {
+	if !gorum.IsRunning() {
+		return fmt.Errorf("info: error: '%s' is not running\n", config.ProgName)
+	}
 	sf := selectFile{
 		linesHeader: 4,
 		linesFooter: 3,
+		progTitle:   config.ProgName,
 	}
+	var errAl, errDb, errOg, errRd error
 	for {
-		var errOg error
 		sf.pwd, errOg = os.Getwd()
 		if errOg != nil {
 			return errOg
 		}
-		var errRd error
 		sf.files, errRd = ioutil.ReadDir(sf.pwd)
 		if errRd != nil {
 			return errRd
@@ -240,7 +456,6 @@ func Run() error {
 		if errDh := sf.drawHeader(); errDh != nil {
 			return errDh
 		}
-		var errDb error
 		sf.startOffset = 0
 		sf.linesBody, errDb = sf.drawBody(sf.startOffset, sf.perPage-(sf.linesHeader+sf.linesFooter+1))
 		if errDb != nil {
@@ -254,144 +469,9 @@ func Run() error {
 		sf.curPos = sf.linesHeader + 1
 		cursor.ResetModes()
 		cursor.Move(sf.curPos, sf.padInt+1)
-		for keyLoop := true; keyLoop; {
-			key, errKp := utils.KeyPress()
-			if errKp != nil {
-				return errKp
-			}
-			keyName, errKn := utils.KeyPressName(key)
-			if errKn != nil {
-				return errKn
-			}
-			switch keyName {
-			case "?":
-				cursor.Move((sf.linesHeader+sf.linesBody+sf.linesFooter)-1, 1)
-				cursor.ClearCurLine()
-				fmt.Print(helpSF())
-				fmt.Print("\nPress ENTER to exit")
-				res := ""
-				if _, errSc := fmt.Scanf("%s", &res); errSc != nil && errSc.Error() != "unexpected newline" {
-					return errSc
-				}
-				cursor.Move(sf.linesHeader+1, sf.padInt+1)
-				keyLoop = false
-			case "_", "^", "p":
-				if sf.oldPwd != "" && sf.oldPwd != sf.pwd {
-					if errCd := os.Chdir(sf.oldPwd); errCd != nil {
-						return errCd
-					}
-					sf.oldPwd = sf.pwd
-					keyLoop = false
-				}
-			case "-":
-				if sf.pwd != "/" {
-					if errCd := os.Chdir(".."); errCd != nil {
-						return errCd
-					}
-					sf.oldPwd = sf.pwd
-					keyLoop = false
-				}
-			case "~":
-				homeDir, errUh := os.UserHomeDir()
-				if errUh != nil {
-					return errUh
-				}
-				if errCd := os.Chdir(homeDir); errCd != nil {
-					return errCd
-				}
-				sf.oldPwd = sf.pwd
-				keyLoop = false
-			case ".":
-				keyLoop = false
-			case "escape", "q":
-				return nil
-			case "enter", "return":
-				if len(sf.files) == 0 || len(sf.files) <= (sf.curPos+sf.startOffset)-(sf.linesHeader+1) {
-					continue
-				}
-				curFileName := sf.files[(sf.curPos+sf.startOffset)-(sf.linesHeader+1)]
-				curFileIsDir := false
-				if curFileName.Mode()&os.ModeSymlink == os.ModeSymlink {
-					symlinkPath, errRl := os.Readlink(curFileName.Name())
-					if errRl != nil {
-						return errRl
-					}
-					fi, errOs := os.Stat(symlinkPath)
-					if os.IsNotExist(errOs) {
-						return fmt.Errorf("run: error: '%s' no such file or directory\n", symlinkPath)
-					} else if errOs != nil {
-						return errOs
-					}
-					if fi.IsDir() {
-						curFileIsDir = true
-					}
-				}
-				if curFileName.IsDir() || curFileIsDir {
-					if errCd := os.Chdir(curFileName.Name()); errCd != nil {
-						return errCd
-					}
-					sf.oldPwd = sf.pwd
-					keyLoop = false
-				} else {
-					if errPl := gorum.Play(curFileName.Name()); errPl != nil {
-						return errPl
-					}
-					cmd := `{"command": ["get_property", "filtered-metadata"]}`
-					if _, errSc := gorum.StatusCmd(cmd, "error", config.MinStatusTries); errSc != nil {
-						log.Print(errSc)
-						cursor.Move((sf.linesHeader+sf.linesBody+sf.linesFooter)-1, 1)
-						cursor.ClearCurLine()
-						utils.ErrPrintf("# %s", errSc.Error())
-						cursor.Move(sf.curPos, sf.padInt+1)
-					}
-				}
-			case "J", "DOWN":
-				sf.curPos = sf.linesHeader + sf.linesBody
-				cursor.Move(sf.curPos, sf.padInt+1)
-			case "K", "UP":
-				sf.curPos = sf.linesHeader + 1
-				cursor.Move(sf.curPos, sf.padInt+1)
-			case "j", "down":
-				if sf.curPos < sf.linesHeader+sf.linesBody {
-					if errNl := sf.nextLine(); errNl != nil {
-						return errNl
-					}
-				} else {
-					if errNp := sf.nextPage(); errNp != nil {
-						return errNp
-					}
-				}
-			case "k", "up":
-				if sf.curPos > sf.linesHeader+1 {
-					if errPl := sf.prevLine(); errPl != nil {
-						return errPl
-					}
-				} else {
-					if errPp := sf.prevPage(false); errPp != nil {
-						return errPp
-					}
-				}
-			case "h", "left":
-				if sf.pages > 1 {
-					if errNp := sf.prevPage(true); errNp != nil {
-						return errNp
-					}
-				}
-			case "l", "right":
-				if sf.pages > 1 {
-					sf.curPos = sf.linesHeader + sf.linesBody
-					if errNp := sf.nextPage(); errNp != nil {
-						return errNp
-					}
-				}
-			case "r":
-				keyLoop = false
-			default:
-				cursor.Move((sf.linesHeader+sf.linesBody+sf.linesFooter)-1, 1)
-				cursor.ClearCurLine()
-				utils.ErrPrintf("# error: keystroke '%s' is not supported, press '?' for help", keyName)
-				cursor.Move(sf.curPos, sf.padInt+1)
-			}
+		errAl = sf.runActions()
+		if errAl != nil {
+			return errAl
 		}
 	}
 }

@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// Clear clears entire terminal screen
+// Clear clears the entire terminal screen
 func Clear() error {
 	cmd := exec.Command("clear")
 	cmd.Stdout = os.Stdout

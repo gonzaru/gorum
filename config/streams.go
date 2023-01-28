@@ -51,8 +51,8 @@ var Streams = map[int]map[string]string{
 		"url":     "https://myradio24.org/8226",
 	},
 	10: {
-		"name":    "Fly FM",
-		"nameIcy": "Radio FLYFM",
-		"url":     "http://flyfm.net:8000/flyfm",
+		"name":    "Sky Radio",
+		"nameIcy": "Sky Radio Stream",
+		"url":     "https://skymedia-live.bitflip.ee/SKY",
 	},
 }

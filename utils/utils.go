@@ -26,14 +26,14 @@ func CountDigit(num int) int {
 	return count
 }
 
-// ErrPrint prints error message to stderr using the default formats
+// ErrPrint prints the error message to stderr using the default formats
 func ErrPrint(v ...interface{}) {
 	if _, err := fmt.Fprint(os.Stderr, v...); err != nil {
 		log.Fatal(err)
 	}
 }
 
-// ErrPrintf prints error message to stderr according to a format specifier
+// ErrPrintf prints the error message to stderr according to a format specifier
 func ErrPrintf(format string, v ...interface{}) {
 	if _, err := fmt.Fprintf(os.Stderr, format, v...); err != nil {
 		log.Fatal(err)
@@ -69,7 +69,7 @@ func FileIndicator(file string) (string, error) {
 func JsonPretty(dataJson []byte, prefix string, delim string) (string, error) {
 	var dataPretty bytes.Buffer
 	if !json.Valid(dataJson) {
-		return "", fmt.Errorf("JsonPretty: error: invalid json %s\n", dataJson)
+		return "", fmt.Errorf("jsonPretty: error: invalid json %s\n", dataJson)
 	}
 	if err := json.Indent(&dataPretty, dataJson, prefix, delim); err != nil {
 		return "", err
@@ -80,9 +80,12 @@ func JsonPretty(dataJson []byte, prefix string, delim string) (string, error) {
 // KeyPress gets the pressed key
 func KeyPress() ([]byte, error) {
 	key := make([]byte, 3, 3)
-	fileFlag := "-f"
-	if runtime.GOOS == "linux" {
+	var fileFlag string
+	switch runtime.GOOS {
+	case "linux":
 		fileFlag = "-F"
+	default:
+		fileFlag = "-f"
 	}
 	if errCs := exec.Command("stty", fileFlag, "/dev/tty", "cbreak", "min", "1").Run(); errCs != nil {
 		return nil, errCs
@@ -141,7 +144,7 @@ func KeyPressName(key []byte) (string, error) {
 	return keyName, nil
 }
 
-// PidFileExists checks if file and pid exists
+// PidFileExists checks if file and pid exist
 func PidFileExists(file string) (bool, error) {
 	status := false
 	if _, errSt := os.Stat(file); os.IsNotExist(errSt) {
@@ -167,7 +170,7 @@ func PidFileExists(file string) (bool, error) {
 	return status, nil
 }
 
-// ValidUrl checks if is a valid url format
+// ValidUrl checks if it is a valid url format
 func ValidUrl(str string) bool {
 	status := false
 	if u, err := url.Parse(str); err == nil && u.Scheme != "" && u.Host != "" && u.Path != "" {

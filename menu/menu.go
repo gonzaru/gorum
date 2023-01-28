@@ -5,7 +5,6 @@ package menu
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -28,11 +27,22 @@ import (
 	"github.com/gonzaru/gorum/utils"
 )
 
+// menuFile data type
+type menuFile struct {
+	numErrors int
+	progTitle string
+	statusMsg string
+	streams   map[int]map[string]string
+}
+
 // finishMenu performs actions before leaving the menu
 func finishMenu() error {
-	fileFlag := "-f"
-	if runtime.GOOS == "linux" {
+	var fileFlag string
+	switch runtime.GOOS {
+	case "linux":
 		fileFlag = "-F"
+	default:
+		fileFlag = "-f"
 	}
 	if errEc := exec.Command("stty", fileFlag, "/dev/tty", "echo").Run(); errEc != nil {
 		return errEc
@@ -45,20 +55,19 @@ func finishMenu() error {
 	return nil
 }
 
-// helpMenu shows help menu information
-func helpMenu() string {
+// help shows help menu information
+func (mf *menuFile) help() string {
 	var help strings.Builder
-	progName := config.ProgName
 	minVolStr := strconv.Itoa(config.VolumeMin)
 	maxVolStr := strconv.Itoa(config.VolumeMax)
 	help.WriteString("help\n")
 	help.WriteString("clear       # clear the terminal screen\n")
-	help.WriteString("exit        # exits the menu\n")
+	help.WriteString("exit        # exits the menu [quit]\n")
 	help.WriteString("sf          # launches sf selector file [.]\n")
 	help.WriteString("number      # plays the selected media stream\n")
 	help.WriteString("url         # plays the stream url\n")
-	help.WriteString("start       # starts " + progName + "\n")
-	help.WriteString("stop        # stops " + progName + "\n")
+	help.WriteString("start       # starts " + mf.progTitle + "\n")
+	help.WriteString("stop        # stops " + mf.progTitle + "\n")
 	help.WriteString("stopplay    # stops playing the current media [stopp]\n")
 	help.WriteString("status      # prints status information\n")
 	help.WriteString("seek +n/-n  # seeks forward (+n) or backward (-n) number in seconds\n")
@@ -105,196 +114,241 @@ func SignalHandler() {
 	os.Exit(code)
 }
 
-// Menu plays selected media using a streaming selector
-func Menu() error {
-	const maxOptErrors = 5
-	var (
-		numOptErrors int
-		streamId     int
-		selCur       string
-		statusMsg    string
-		optionStr    string
-	)
-	streams := config.Streams
-	keys := make([]int, 0, len(config.Streams))
-	for key := range streams {
+// streamIds get the numeric stream ids
+func (mf *menuFile) streamIds() []int {
+	keys := make([]int, 0, len(mf.streams))
+	for key := range mf.streams {
 		keys = append(keys, key)
 	}
 	sort.Ints(keys)
-	if !gorum.IsRunning() {
-		statusMsg = fmt.Sprintf("info: '%s' is not running, see help\n", config.ProgName)
-	} else if streamId > 0 {
-		if _, ok := streams[streamId]; ok {
-			statusMsg = streams[streamId]["name"]
+	return keys
+}
+
+// draw draw the menu
+func (mf *menuFile) draw() error {
+	if errSc := screen.Clear(); errSc != nil {
+		return errSc
+	}
+	var selStream string
+	curStream := gorum.StreamPath()
+	numPad := strconv.Itoa(utils.CountDigit(len(mf.streams)))
+	fmt.Printf("%"+numPad+"s### %s ###\n", "", strings.ToUpper(mf.progTitle))
+	fmt.Printf("%"+numPad+"s?) help\n", "")
+	fmt.Printf("%"+numPad+"s.) sf\n", "")
+	for _, key := range mf.streamIds() {
+		selStream = " "
+		if curStream == mf.streams[key]["url"] {
+			selStream = "*"
+			if mf.statusMsg == "" {
+				mf.statusMsg = mf.streams[key]["name"]
+			}
+		}
+		fmt.Printf("%s%"+numPad+"d) %s\n", selStream, key, mf.streams[key]["name"])
+	}
+	fmt.Printf("\n# %s\n> ", strings.TrimRight(mf.statusMsg, "\n"))
+	return nil
+}
+
+// doActionDefault executes the default menu option
+func (mf *menuFile) doActionDefault(action string) error {
+	var (
+		errSa    error
+		streamId int
+	)
+	streamId, errSa = strconv.Atoi(action)
+	if _, ok := mf.streams[streamId]; (!ok || errSa != nil) && !utils.ValidUrl(action) {
+		mf.numErrors++
+		if mf.numErrors >= config.MaxMenuTries {
+			errMsg := fmt.Errorf("doActionDefault: error: too many consecutive errors\n")
+			utils.ErrPrint(errMsg)
+			log.Fatal(errMsg)
+		}
+		return fmt.Errorf("error: invalid option")
+	}
+	mf.numErrors = 0
+	if errPl := gorum.Play(action); errPl != nil {
+		return errPl
+	}
+	cmd := `{"command": ["get_property", "filtered-metadata"]}`
+	if _, errSc := gorum.StatusCmd(cmd, "error", config.MaxStatusTries); errSc != nil {
+		return errSc
+	}
+	if _, ok := mf.streams[streamId]; ok {
+		mf.statusMsg = mf.streams[streamId]["name"]
+	} else {
+		for key := range mf.streams {
+			if action == mf.streams[key]["url"] {
+				mf.statusMsg = mf.streams[key]["name"]
+				break
+			}
 		}
 	}
-	curStream := gorum.StreamPath()
-	numPad := strconv.Itoa(utils.CountDigit(len(streams)))
+	if mf.statusMsg == "" {
+		mf.statusMsg = action
+	}
+	return nil
+}
+
+// doActionSeek executes the seek menu option
+func (mf *menuFile) doActionSeek(action string, actionArgs []string) error {
+	regexSeek := regexp.MustCompile(`^seek\s[+-]\d+$`)
+	if len(actionArgs) == 0 || !regexSeek.MatchString(action+" "+actionArgs[0]) {
+		return fmt.Errorf("doActionSeek: error: invalid arg")
+	}
+	secondsInt, errSa := strconv.Atoi(actionArgs[0])
+	if errSa != nil {
+		return errSa
+	}
+	if errSe := gorum.Seek(secondsInt); errSe != nil {
+		return errSe
+	}
+	cmd := `{"command": ["get_property_string", "playback-time"]}`
+	_, content, errSc := gorum.SendCmd(cmd)
+	if errSc != nil {
+		return errSc
+	}
+	mf.statusMsg = fmt.Sprintf("%s: %s", "time", content["data"])
+	return nil
+}
+
+// doActionStart executes the start menu option
+func (mf *menuFile) doActionStart() error {
+	if gorum.IsRunning() {
+		return fmt.Errorf("doActionStart: error: '%s' is already running\n", mf.progTitle)
+	}
+	curFile, errOe := os.Executable()
+	if errOe != nil {
+		return errOe
+	}
+	cmdCg := exec.Command(curFile, "start")
+	cmdCg.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if errCr := cmdCg.Start(); errCr != nil {
+		return errCr
+	}
+	mf.statusMsg = fmt.Sprintf("info: %s pid: %s", mf.progTitle, strconv.Itoa(cmdCg.Process.Pid))
+	return nil
+}
+
+// doActionToggle executes the toggle menu option
+func (mf *menuFile) doActionToggle(action string) error {
+	if errTo := gorum.Toggle(action); errTo != nil {
+		return errTo
+	}
+	cmd := fmt.Sprintf(`{"command": ["get_property_string", "%s"]}`, action)
+	_, content, errSc := gorum.SendCmd(cmd)
+	if errSc != nil {
+		return errSc
+	}
+	mf.statusMsg = fmt.Sprintf("%s: %s", action, content["data"])
+	return nil
+}
+
+// doActionVolume executes the volume menu option
+func (mf *menuFile) doActionVolume(actionBase string, actionArg []string) error {
+	regexVolume := regexp.MustCompile(`^(volume|vol)\s-?\d+$`)
+	if len(actionArg) == 0 || !regexVolume.MatchString(actionBase+" "+actionArg[0]) {
+		return fmt.Errorf("doActionVolume: error: invalid arg")
+	}
+	numInt, errSa := strconv.Atoi(actionArg[0])
+	if errSa != nil {
+		return errSa
+	}
+	if errSe := gorum.Volume(numInt); errSe != nil {
+		return errSe
+	}
+	mf.statusMsg = fmt.Sprintf("%s: %d", "volume", numInt)
+	return nil
+}
+
+// doAction executes the selected menu option
+func (mf *menuFile) doAction(option string) error {
+	action := strings.Split(option, " ")[0]
+	actionArgs := strings.Split(option, " ")[1:]
+	mf.statusMsg = ""
+	switch action {
+	case ".", "sf":
+		if err := sf.Run(); err != nil {
+			mf.statusMsg = err.Error()
+		}
+	case "?", "help":
+		mf.statusMsg = mf.help()
+	case "clear":
+		mf.statusMsg = ""
+	case "exit", "quit":
+		os.Exit(0)
+	case "mute", "pause", "video":
+		if err := mf.doActionToggle(action); err != nil {
+			mf.statusMsg = err.Error()
+		}
+	case "number", "url":
+		mf.statusMsg = fmt.Sprintf("info: simply put the stream %s and press ENTER", action)
+	case "seek":
+		if err := mf.doActionSeek(action, actionArgs); err != nil {
+			mf.statusMsg = err.Error()
+		}
+	case "start":
+		if err := mf.doActionStart(); err != nil {
+			mf.statusMsg = err.Error()
+		}
+	case "status":
+		content, err := gorum.Status()
+		if err != nil {
+			mf.statusMsg = err.Error()
+		} else {
+			mf.statusMsg = "status\n" + content
+		}
+	case "stop":
+		if err := gorum.Stop(); err != nil {
+			mf.statusMsg = err.Error()
+		}
+		if !gorum.IsRunning() {
+			mf.statusMsg = fmt.Sprintf("info: '%s' is not running, see help\n", mf.progTitle)
+		}
+	case "stopp", "stopplay":
+		if err := gorum.PlayStop(); err != nil {
+			mf.statusMsg = err.Error()
+		}
+	case "title":
+		content, err := gorum.Title()
+		if err != nil {
+			mf.statusMsg = err.Error()
+		} else {
+			mf.statusMsg = fmt.Sprintf("%s: %s", action, content)
+		}
+	case "volume", "vol":
+		if err := mf.doActionVolume(action, actionArgs); err != nil {
+			mf.statusMsg = err.Error()
+		}
+	default:
+		if err := mf.doActionDefault(action); err != nil {
+			mf.statusMsg = err.Error()
+		}
+	}
+	return nil
+}
+
+// Menu plays the selected media using a streaming selector
+func Menu() error {
+	mf := menuFile{
+		progTitle: config.ProgName,
+		streams:   config.Streams,
+	}
+	if !gorum.IsRunning() {
+		mf.statusMsg = fmt.Sprintf("info: '%s' is not running, see help\n", mf.progTitle)
+	}
 	for {
-		if errSc := screen.Clear(); errSc != nil {
-			return errSc
+		if errDr := mf.draw(); errDr != nil {
+			return errDr
 		}
-		fmt.Printf("%"+numPad+"s### %s ###\n", "", strings.ToUpper(config.ProgName))
-		fmt.Printf("%"+numPad+"s?) help\n", "")
-		fmt.Printf("%"+numPad+"s.) sf\n", "")
-		for _, key := range keys {
-			selCur = " "
-			if streamId == key || curStream == streams[key]["url"] {
-				selCur = "*"
-				if statusMsg == "" {
-					statusMsg = streams[key]["name"]
-				}
-			}
-			fmt.Printf("%s%"+numPad+"d) %s\n", selCur, key, streams[key]["name"])
-		}
-		fmt.Printf("\n# %s\n> ", strings.TrimRight(statusMsg, "\n"))
 		scanner := bufio.NewScanner(os.Stdin)
 		scanner.Scan()
-		optionStr = strings.TrimSpace(scanner.Text())
-		// options with arguments
-		regexSeek := regexp.MustCompile(`^seek\s[+-]\d+$`)
-		regexVolume := regexp.MustCompile(`^volume\s[-]?\d+$`)
-		switch {
-		case regexSeek.MatchString(optionStr):
-			secondsInt, errSa := strconv.Atoi(strings.Split(optionStr, " ")[1])
-			if errSa != nil {
-				statusMsg = errSa.Error()
-				continue
-			}
-			if errSe := gorum.Seek(secondsInt); errSe != nil {
-				statusMsg = errSe.Error()
-				continue
-			}
-			cmd := `{"command": ["get_property_string", "playback-time"]}`
-			_, content, errSc := gorum.SendCmd(cmd)
-			if errSc != nil {
-				statusMsg = errSc.Error()
-				continue
-			}
-			statusMsg = fmt.Sprintf("%s: %s", "time", content["data"])
-			continue
-		case regexVolume.MatchString(optionStr):
-			numInt, errSa := strconv.Atoi(strings.Split(optionStr, " ")[1])
-			if errSa != nil {
-				statusMsg = errSa.Error()
-				continue
-			}
-			if errSe := gorum.Volume(numInt); errSe != nil {
-				statusMsg = errSe.Error()
-				continue
-			}
-			statusMsg = fmt.Sprintf("%s: %d", "volume", numInt)
-			continue
+		option := strings.TrimSpace(scanner.Text())
+		if option == "exit" || option == "quit" {
+			break
 		}
-		// options without arguments
-		switch optionStr {
-		case ".", "sf":
-			if errMe := sf.Run(); errMe != nil {
-				statusMsg = errMe.Error()
-			}
-		case "?", "help":
-			statusMsg = helpMenu()
-		case "clear":
-			statusMsg = ""
-		case "exit":
-			return nil
-		case "mute", "pause", "video":
-			if errTo := gorum.Toggle(optionStr); errTo != nil {
-				statusMsg = errTo.Error()
-				continue
-			}
-			cmd := fmt.Sprintf(`{"command": ["get_property_string", "%s"]}`, optionStr)
-			_, content, errSc := gorum.SendCmd(cmd)
-			if errSc != nil {
-				statusMsg = errSc.Error()
-				continue
-			}
-			statusMsg = fmt.Sprintf("%s: %s", optionStr, content["data"])
-		case "number", "url":
-			statusMsg = fmt.Sprintf("info: simply put the stream %s and press ENTER", optionStr)
-		case "start":
-			statusMsg = ""
-			if gorum.IsRunning() {
-				statusMsg = fmt.Sprintf("menu: error: '%s' is already running\n", config.ProgName)
-				continue
-			}
-			curFile, errOe := os.Executable()
-			if errOe != nil {
-				statusMsg = errOe.Error()
-				continue
-			}
-			cmdCg := exec.Command(curFile, "start")
-			cmdCg.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-			if errCr := cmdCg.Start(); errCr != nil {
-				statusMsg = errCr.Error()
-				continue
-			}
-			statusMsg = fmt.Sprintf("info: %s pid: %s", config.ProgName, strconv.Itoa(cmdCg.Process.Pid))
-		case "status":
-			content, err := gorum.Status()
-			if err != nil {
-				statusMsg = err.Error()
-			} else {
-				statusMsg = "status\n" + content
-			}
-		case "stop":
-			curStream = ""
-			streamId = -1
-			statusMsg = ""
-			if err := gorum.Stop(); err != nil {
-				statusMsg = err.Error()
-			}
-		case "stopp", "stopplay":
-			curStream = ""
-			streamId = -1
-			statusMsg = ""
-			if err := gorum.PlayStop(); err != nil {
-				statusMsg = err.Error()
-			}
-		case "title":
-			content, err := gorum.Title()
-			if err != nil {
-				statusMsg = err.Error()
-				continue
-			}
-			statusMsg = fmt.Sprintf("%s: %s", optionStr, content)
-		default:
-			var errSa error
-			curStream = ""
-			statusMsg = ""
-			streamId, errSa = strconv.Atoi(optionStr)
-			if _, ok := streams[streamId]; (!ok || errSa != nil) && !utils.ValidUrl(optionStr) {
-				numOptErrors++
-				if numOptErrors >= maxOptErrors {
-					return errors.New("menu: error: too many consecutive errors\n")
-				}
-				statusMsg = "invalid option"
-				continue
-			}
-			numOptErrors = 0
-			if errPl := gorum.Play(optionStr); errPl != nil {
-				statusMsg = errPl.Error()
-				continue
-			}
-			cmd := `{"command": ["get_property", "filtered-metadata"]}`
-			if _, errSc := gorum.StatusCmd(cmd, "error", config.MaxStatusTries); errSc != nil {
-				statusMsg = errSc.Error()
-				continue
-			}
-			if _, ok := streams[streamId]; ok {
-				statusMsg = streams[streamId]["name"]
-			} else {
-				for key := range streams {
-					if optionStr == streams[key]["url"] {
-						statusMsg = streams[key]["name"]
-						streamId = key
-						break
-					}
-				}
-			}
-			if statusMsg == "" {
-				statusMsg = optionStr
-			}
+		if errDo := mf.doAction(option); errDo != nil {
+			mf.statusMsg = errDo.Error()
 		}
 	}
+	return nil
 }

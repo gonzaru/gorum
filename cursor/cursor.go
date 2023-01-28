@@ -5,7 +5,7 @@ package cursor
 
 import "fmt"
 
-// Escape ASCII hexadecimal escape character
+// Escape the ASCII hexadecimal escape character
 const Escape = "\x1b"
 
 // ClearCurLine clears the current line

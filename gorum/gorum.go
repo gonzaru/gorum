@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -30,7 +31,7 @@ import (
 	"github.com/gonzaru/gorum/utils"
 )
 
-// checkOS checks if current operating system has been tested
+// checkOS checks if the current operating system has been tested
 func checkOS() bool {
 	status := false
 	items := []string{"darwin", "freebsd", "linux", "netbsd", "openbsd"}
@@ -60,7 +61,7 @@ func CheckOut() error {
 	return nil
 }
 
-// cleanUp removes temporary files if necessary
+// cleanUp removes the temporary files if necessary
 func cleanUp() error {
 	files := []string{
 		config.LockDir,
@@ -82,7 +83,7 @@ func cleanUp() error {
 	return nil
 }
 
-// controlFileExists checks if controlFile exists and is in socket mode
+// controlFileExists checks if the controlFile exists and is in socket mode
 func controlFileExists(file string) error {
 	fi, err := os.Stat(config.PlayerControlFile)
 	if os.IsNotExist(err) {
@@ -140,7 +141,7 @@ func isIdle() bool {
 	return status
 }
 
-// IsRunning checks if ProgName is locked or already running
+// IsRunning checks if the main program is locked or already running
 func IsRunning() bool {
 	if fi, errOs := os.Stat(config.LockDir); errOs == nil && fi.IsDir() {
 		return true
@@ -294,7 +295,7 @@ func Seek(seconds int) error {
 	return nil
 }
 
-// SendCmd sends command to media player
+// SendCmd sends the command to media player
 func SendCmd(cmd string) ([]byte, map[string]interface{}, error) {
 	var content map[string]interface{}
 	if !IsRunning() {
@@ -336,7 +337,7 @@ func SendCmd(cmd string) ([]byte, map[string]interface{}, error) {
 	return dataJson, content, nil
 }
 
-// sendCmds sends commands to media player
+// sendCmds sends the commands to media player
 func sendCmds(cmds []string, async bool) ([][]interface{}, error) {
 	var (
 		dataJson []byte
@@ -381,7 +382,7 @@ func sendCmds(cmds []string, async bool) ([][]interface{}, error) {
 // SetLog sets logging output file
 func SetLog() error {
 	// create file if does not exist or append it
-	file, err := os.OpenFile(config.GorumLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	file, err := os.OpenFile(config.Log, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
@@ -389,7 +390,7 @@ func SetLog() error {
 	return nil
 }
 
-// setUp
+// setUp creates initial starting files
 func setUp() error {
 	if errCd := os.Mkdir(config.LockDir, 0700); errCd != nil {
 		return errCd
@@ -435,7 +436,43 @@ func SignalHandler() {
 	os.Exit(code)
 }
 
-// Start starts the ProgName
+// scanOut scans the output text
+func scanOut(stdout io.ReadCloser) error {
+	title := ""
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, "[cplayer] audio EOF reached") {
+			if _, errOs := os.Stat(config.WmFile); errOs == nil {
+				if errOr := os.Remove(config.WmFile); errOr != nil {
+					return errOr
+				}
+				if errWb := wmBarUpdate(); errWb != nil {
+					return errWb
+				}
+			}
+			continue
+		}
+		regexTitle := regexp.MustCompile(`^\sicy-title:\s|^Title:\s|^\[cplayer].*/force-media-title=`)
+		if strings.Contains(line, "[file] Opening ") {
+			lineSplit := strings.Split(line, "/")
+			title = strings.TrimSpace(lineSplit[len(lineSplit)-1])
+		} else if match := regexTitle.MatchString(line); match {
+			title = strings.Trim(strings.TrimRight(regexTitle.ReplaceAllString(line, ""), " -> 1"), `"`)
+		} else {
+			continue
+		}
+		if title != "" {
+			log.Printf("start: title: %s\n", title)
+			if errWf := wmFileUpdate(config.WmFile, []byte(title+"\n"), config.WmFilePerms); errWf != nil {
+				return errWf
+			}
+		}
+	}
+	return nil
+}
+
+// Start starts the main program
 func Start() error {
 	if IsRunning() {
 		return fmt.Errorf("start: error: '%s' is already running or locked\n", config.ProgName)
@@ -469,36 +506,8 @@ func Start() error {
 	fmt.Print(msg)
 	log.Print(msg)
 	log.Printf("start: info: run %s\n", strings.Join(cmd.Args, " "))
-	title := ""
-	scanner := bufio.NewScanner(stdout)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.Contains(line, "[cplayer] audio EOF reached") {
-			if _, errOs := os.Stat(config.WmFile); errOs == nil {
-				if errOr := os.Remove(config.WmFile); errOr != nil {
-					return errOr
-				}
-				if errWb := wmBarUpdate(); errWb != nil {
-					return errWb
-				}
-			}
-			continue
-		}
-		regexTitle := regexp.MustCompile(`^\sicy-title:\s|^Title:\s|^\[cplayer].*/force-media-title=`)
-		if strings.Contains(line, "[file] Opening ") {
-			lineSplit := strings.Split(line, "/")
-			title = strings.TrimSpace(lineSplit[len(lineSplit)-1])
-		} else if match := regexTitle.MatchString(line); match {
-			title = strings.Trim(strings.TrimRight(regexTitle.ReplaceAllString(line, ""), " -> 1"), `"`)
-		} else {
-			continue
-		}
-		if title != "" {
-			log.Printf("start: title: %s\n", title)
-			if errWf := wmFileUpdate(config.WmFile, []byte(title+"\n"), config.WmFilePerms); errWf != nil {
-				return errWf
-			}
-		}
+	if errDn := scanOut(stdout); errDn != nil {
+		return errDn
 	}
 	if errCw := cmd.Wait(); errCw != nil {
 		return fmt.Errorf("start: error: '%s' command error %s\n", config.Player, errCw.Error())
@@ -506,7 +515,7 @@ func Start() error {
 	return nil
 }
 
-// Status prints status information
+// Status prints the status information
 func Status() (string, error) {
 	if !IsRunning() {
 		return "", fmt.Errorf("status: error: '%s' is not running\n", config.ProgName)
@@ -548,7 +557,7 @@ func StatusCmd(cmd string, field string, maxTries int) (map[string]interface{}, 
 	return content, err
 }
 
-// statusPlayer prints media player status information
+// statusPlayer prints the media player status information
 func statusPlayer() (string, error) {
 	var statusInfo strings.Builder
 	cmd := `{"command": ["get_property", "metadata"]}`
@@ -613,7 +622,7 @@ func StreamPath() string {
 	return fmt.Sprintf("%v", content["data"])
 }
 
-// Stop stops the ProgName
+// Stop stops the main program
 func Stop() error {
 	if !IsRunning() {
 		return fmt.Errorf("stop: error: '%s' is not running\n", config.ProgName)
@@ -655,7 +664,7 @@ func stopPlayer() error {
 	return nil
 }
 
-// Title prints media title
+// Title prints the media title
 func Title() (string, error) {
 	if !IsRunning() {
 		return "", fmt.Errorf("title: error: '%s' is not running\n", config.ProgName)
@@ -686,7 +695,7 @@ func Toggle(property string) error {
 	return nil
 }
 
-// toggleVideo toggles between video auto and off
+// toggleVideo toggles between video auto/off
 func toggleVideo() error {
 	cmdGv := `{"command": ["get_property_string", "video"]}`
 	_, content, errGv := SendCmd(cmdGv)
@@ -707,7 +716,7 @@ func toggleVideo() error {
 	return nil
 }
 
-// Volume sets volume
+// Volume sets the volume
 func Volume(num int) error {
 	minNum := config.VolumeMin
 	maxNum := config.VolumeMax
@@ -730,7 +739,7 @@ func Volume(num int) error {
 	return nil
 }
 
-// volumeAbsolute sets absolute volume (0 means silence, 100 means no reduction)
+// volumeAbsolute sets the absolute volume (0 means silence, 100 means no reduction)
 func volumeAbsolute(num int) error {
 	cmd := fmt.Sprintf(`{"command": ["set_property", "volume", "%d"]}`, num)
 	if _, _, errSc := SendCmd(cmd); errSc != nil {
@@ -739,7 +748,7 @@ func volumeAbsolute(num int) error {
 	return nil
 }
 
-// volumeSystem sets system volume (OSS, ALSA, PulseAudio, etc)
+// volumeSystem sets the system volume (OSS, ALSA, PulseAudio, etc)
 func volumeSystem(num int) error {
 	cmd := fmt.Sprintf(`{"command": ["set_property", "ao-volume", "%d"]}`, num)
 	if _, _, errSc := SendCmd(cmd); errSc != nil {
@@ -748,7 +757,7 @@ func volumeSystem(num int) error {
 	return nil
 }
 
-// wmBarUpdate updates window manager status bar
+// wmBarUpdate updates the window manager status bar
 func wmBarUpdate() error {
 	if config.WmDoBarUpdate && os.Getenv("DISPLAY") != "" {
 		if _, errLp := exec.LookPath("wmbarupdate"); errLp == nil {
@@ -761,7 +770,7 @@ func wmBarUpdate() error {
 	return nil
 }
 
-// wmFileUpdate updates window manager media title file
+// wmFileUpdate updates the window manager media title file
 func wmFileUpdate(file string, data []byte, fi os.FileMode) error {
 	if errWf := ioutil.WriteFile(file, data, fi); errWf != nil {
 		return errWf
