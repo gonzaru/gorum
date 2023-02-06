@@ -37,6 +37,11 @@ func main() {
 	}
 	arg := args[0]
 	switch arg {
+	case "check":
+		if !gorum.IsRunning() {
+			utils.ErrPrintf("main: error: '%s' is not running\n", config.ProgName)
+			os.Exit(1)
+		}
 	case "help":
 		gorum.Help()
 	case "menu":

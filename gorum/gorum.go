@@ -113,6 +113,7 @@ func Help() {
 	minVol := config.VolumeMin
 	maxVol := config.VolumeMax
 	fmt.Print("Usage:\n")
+	fmt.Printf("  %s check          # checks if %s is already running or locked\n", progName, progName)
 	fmt.Printf("  %s number         # number key id from config.Streams\n", progName)
 	fmt.Printf("  %s url            # plays the stream url\n", progName)
 	fmt.Printf("  %s /path/to/file  # plays the local file\n", progName)
