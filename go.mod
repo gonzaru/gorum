@@ -3,4 +3,4 @@
 
 module github.com/gonzaru/gorum
 
-go 1.18
+go 1.19

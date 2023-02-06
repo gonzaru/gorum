@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"io/ioutil"
 	"log"
 	"math"
 	"os"
@@ -28,7 +27,7 @@ import (
 type selectFile struct {
 	actionLoop  bool
 	curPos      int
-	files       []fs.FileInfo
+	files       []fs.DirEntry
 	linesBody   int
 	linesFooter int
 	linesHeader int
@@ -216,7 +215,7 @@ func (sf *selectFile) doActionEnter() error {
 	}
 	curFileName := sf.files[(sf.curPos+sf.startOffset)-(sf.linesHeader+1)]
 	curFileIsDir := false
-	if curFileName.Mode()&os.ModeSymlink == os.ModeSymlink {
+	if curFileName.Type()&os.ModeSymlink == os.ModeSymlink {
 		symlinkPath, errRl := os.Readlink(curFileName.Name())
 		if errRl != nil {
 			return errRl
@@ -436,7 +435,7 @@ func Run() error {
 		if errOg != nil {
 			return errOg
 		}
-		sf.files, errRd = ioutil.ReadDir(sf.pwd)
+		sf.files, errRd = os.ReadDir(sf.pwd)
 		if errRd != nil {
 			return errRd
 		}

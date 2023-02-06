@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -395,7 +394,7 @@ func setUp() error {
 	if errCd := os.Mkdir(config.LockDir, 0700); errCd != nil {
 		return errCd
 	}
-	if errCp := ioutil.WriteFile(config.PidFile, []byte(strconv.Itoa(os.Getpid())+"\n"), 0600); errCp != nil {
+	if errCp := os.WriteFile(config.PidFile, []byte(strconv.Itoa(os.Getpid())+"\n"), 0600); errCp != nil {
 		return errCp
 	}
 	return nil
@@ -497,7 +496,7 @@ func Start() error {
 	if errCs := cmd.Start(); errCs != nil {
 		return errCs
 	}
-	if errCp := ioutil.WriteFile(config.PlayerPidFile, []byte(strconv.Itoa(cmd.Process.Pid)+"\n"), 0600); errCp != nil {
+	if errCp := os.WriteFile(config.PlayerPidFile, []byte(strconv.Itoa(cmd.Process.Pid)+"\n"), 0600); errCp != nil {
 		return errCp
 	}
 	msg = fmt.Sprintf(
@@ -650,7 +649,7 @@ func stopPlayer() error {
 	if status, errPf := utils.PidFileExists(config.PlayerPidFile); !status && errPf == nil {
 		return nil
 	}
-	content, errRf := ioutil.ReadFile(config.PlayerPidFile)
+	content, errRf := os.ReadFile(config.PlayerPidFile)
 	if errRf != nil {
 		return errRf
 	}
@@ -772,7 +771,7 @@ func wmBarUpdate() error {
 
 // wmFileUpdate updates the window manager media title file
 func wmFileUpdate(file string, data []byte, fi os.FileMode) error {
-	if errWf := ioutil.WriteFile(file, data, fi); errWf != nil {
+	if errWf := os.WriteFile(file, data, fi); errWf != nil {
 		return errWf
 	}
 	if errWb := wmBarUpdate(); errWb != nil {

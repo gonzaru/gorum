@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/url"
 	"os"
@@ -152,7 +151,7 @@ func PidFileExists(file string) (bool, error) {
 	} else if errSt != nil {
 		return false, errSt
 	}
-	content, errRf := ioutil.ReadFile(file)
+	content, errRf := os.ReadFile(file)
 	if errRf != nil {
 		return false, errRf
 	}
